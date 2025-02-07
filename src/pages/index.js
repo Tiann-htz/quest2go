@@ -12,6 +12,7 @@ import { useRouter } from 'next/router';
 export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(''); 
+  const [searchError, setSearchError] = useState(false);
   const menuRef = useRef(null);
   const buttonRef = useRef(null);
   const router = useRouter(); 
@@ -35,8 +36,22 @@ export default function Home() {
   }, [isMenuOpen]);
 
   const handleSearch = (e) => {
+    // Only proceed if there's a non-empty search query (trimmed to remove whitespace)
+    if ((e.key === 'Enter' || e.type === 'click') && searchQuery.trim()) {
+      router.push(`/home?search=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
+  const handleSearchWithValidation = (e) => {
     if (e.key === 'Enter' || e.type === 'click') {
-      router.push(`/home?search=${encodeURIComponent(searchQuery)}`);
+      if (searchQuery.trim()) {
+        setSearchError(false);
+        router.push(`/home?search=${encodeURIComponent(searchQuery.trim())}`);
+      } else {
+        setSearchError(true);
+        // Remove error state after 3 seconds
+        setTimeout(() => setSearchError(false), 3000);
+      }
     }
   };
 
@@ -160,22 +175,27 @@ export default function Home() {
 
           {/* Search Bar */}
           <div className="mt-8 max-w-md mx-auto sm:max-w-lg md:max-w-2xl">
-            <div className="flex items-center rounded-md shadow-xl bg-white/90 p-4 border-2 border-indigo-100 hover:border-indigo-300 transition-all backdrop-blur-sm">
-              <MagnifyingGlassIcon 
-                className="h-6 w-6 text-indigo-500 cursor-pointer" 
-                onClick={handleSearch}
-              />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={handleSearch}
-                className="flex-grow p-2 focus:outline-none ml-2 placeholder-gray-400 bg-transparent text-gray-800"
-                placeholder="Search by keyword, author, institution, or research topic..."
-                style={{ fontFamily: 'Quicksand' }}
-              />
-            </div>
-          </div>
+  <div className={`flex items-center rounded-md shadow-xl bg-white/90 p-4 border-2 ${
+    searchError ? 'border-indigo-300' : 'border-indigo-100 hover:border-indigo-300'
+  } transition-all backdrop-blur-sm`}>
+    <MagnifyingGlassIcon 
+      className={`h-6 w-6 ${searchError ? 'text-indigo-500' : 'text-indigo-500'} cursor-pointer`}
+      onClick={handleSearchWithValidation}
+    />
+    <input
+      type="text"
+      value={searchQuery}
+      onChange={(e) => {
+        setSearchQuery(e.target.value);
+        if (searchError) setSearchError(false);
+      }}
+      onKeyPress={handleSearchWithValidation}
+      className="flex-grow p-2 focus:outline-none ml-2 placeholder-gray-400 bg-transparent text-gray-800"
+      placeholder="Search by keyword, author, institution, or research topic..."
+      style={{ fontFamily: 'Quicksand' }}
+    />
+  </div>
+</div>
         </div>
       </section>
 

@@ -1,9 +1,12 @@
+// src/pages/home.js
 import Head from 'next/head';
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { MagnifyingGlassIcon, BellIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
 import axios from 'axios';
 import LoginModal from '@/components/LoginModal';
+import NetworkGraphModal from '@/components/NetworkGraphModal'; // Import the new modal
 import Image from 'next/image';
 
 export default function Home() {
@@ -12,10 +15,11 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showNetworkGraphModal, setShowNetworkGraphModal] = useState(false); // State for network graph modal
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // State for sidebar visibility
-  const [searchTerm, setSearchTerm] = useState(''); // State for search term
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const sidebarRef = useRef(null);
   const { search } = router.query;
 
@@ -57,7 +61,7 @@ export default function Home() {
     {
       id: 1,
       title: "Impact of Online Learning on Student Performance",
-      date: "2024-01-15",
+      date: "2025-01-15",
       link: "/home",
       author: "Dr. Sarah Johnson",
       institution: "University of Mindanao"
@@ -65,7 +69,7 @@ export default function Home() {
     {
       id: 2,
       title: "Sustainable Agriculture Practices in Davao Region",
-      date: "2024-01-20",
+      date: "2009-01-20",
       link: "/home",
       author: "Prof. Manuel Santos",
       institution: "Davao Medical School Foundation"
@@ -73,7 +77,7 @@ export default function Home() {
     {
       id: 3,
       title: "Mental Health Among College Students During Pandemic",
-      date: "2024-02-01",
+      date: "2001-02-01",
       link: "/home",
       author: "Dr. Maria Garcia",
       institution: "San Pedro College"
@@ -85,7 +89,8 @@ export default function Home() {
       setSelectedArticle(article);
       setShowLoginModal(true);
     } else {
-      router.push(article.link);
+      setSelectedArticle(article);
+      setShowNetworkGraphModal(true); // Show network graph modal
     }
   };
 
@@ -94,7 +99,7 @@ export default function Home() {
     setShowLoginModal(false);
     setRefreshKey(prevKey => prevKey + 1);
     if (selectedArticle) {
-      router.push(selectedArticle.link);
+      setShowNetworkGraphModal(true); // Show network graph modal after login
     }
   };
 
@@ -112,7 +117,6 @@ export default function Home() {
   const handleSearch = (event) => {
     const value = event.target.value;
     setSearchTerm(value);
-    // Implement search logic here if needed, e.g., filtering articles
   };
 
   const toggleSidebar = () => {
@@ -120,7 +124,15 @@ export default function Home() {
   };
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="flex space-x-2">
+          <div className="h-3 w-3 bg-indigo-600 rounded-full animate-bounce delay-0"></div>
+          <div className="h-3 w-3 bg-indigo-600 rounded-full animate-bounce delay-100"></div>
+          <div className="h-3 w-3 bg-indigo-600 rounded-full animate-bounce delay-200"></div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -139,7 +151,7 @@ export default function Home() {
       >
         {/* Logo */}
         <div className="h-16 flex items-center mt-3 justify-center">
-          <div className="flex items-center px-4">
+          <Link href="/" className="flex items-center px-4 hover:opacity-80 transition-opacity">
             <Image
               src="/Logo/q2glogo.png"
               alt="Quest2Go Logo"
@@ -148,7 +160,7 @@ export default function Home() {
               className="object-contain"
             />
             <span className="ml-2 text-gray-900 font-bold text-xl">Quest2Go</span>
-          </div>
+          </Link>
         </div>
 
         {/* Search Bar */}
@@ -158,13 +170,12 @@ export default function Home() {
               type="text"
               placeholder="Search articles..."
               value={searchTerm}
-              onChange={handleSearch}
+              onChange={handleSearch}  
               className="w-full px-4 py-2 pr-10 bg-gray-100 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute right-3 top-2.5" />
           </div>
         </div>
-
 
         {/* Filters */}
         <div className="px-4">
@@ -290,6 +301,13 @@ export default function Home() {
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
         onSuccess={handleLoginSuccess}
+      />
+
+      {/* Network Graph Modal */}
+      <NetworkGraphModal
+        isOpen={showNetworkGraphModal}
+        onClose={() => setShowNetworkGraphModal(false)}
+        articles={articles}
       />
     </div>
   );

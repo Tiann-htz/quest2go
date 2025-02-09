@@ -6,4 +6,27 @@ html {
   scroll-behavior: smooth;
 }
 
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
 
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
+
+.delay-0 {
+  animation-delay: 0s;
+}
+
+.delay-100 {
+  animation-delay: 0.1s;
+}
+
+.delay-200 {
+  animation-delay: 0.2s;
+}

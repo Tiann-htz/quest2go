@@ -25,6 +25,7 @@
     "react-dom": "^19.0.0",
     "react-force-graph": "^1.46.0",
     "react-force-graph-2d": "^1.27.0",
+    "react-graph-vis": "^1.0.7",
     "reactflow": "^11.11.4",
     "vis-network": "^9.1.9"
   },

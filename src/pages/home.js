@@ -1,4 +1,3 @@
-// src/pages/home.js
 import Head from 'next/head';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
@@ -6,7 +5,7 @@ import { useRouter } from 'next/router';
 import { MagnifyingGlassIcon, BellIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
 import axios from 'axios';
 import LoginModal from '@/components/LoginModal';
-import NetworkGraphModal from '@/components/NetworkGraphModal'; // Import the new modal
+import NetworkGraphModal from '@/components/NetworkGraphModal';
 import Image from 'next/image';
 
 export default function Home() {
@@ -57,32 +56,99 @@ export default function Home() {
   }, [refreshKey]);
 
   // Sample research articles
-  const articles = [
-    {
-      id: 1,
-      title: "Impact of Online Learning on Student Performance",
+  // Sample research articles
+const articles = [
+  {
+    id: 1,
+    title: "The Impact of Social Media Usage on Depression Among University Students",
+    date: "2025-01-15",
+    link: "/home",
+    author: "Dr. Sarah Johnson",
+    institution: "University of Mindanao",
+    abstract: "This study investigates the correlation between social media usage patterns and depression rates among university students in Davao City, utilizing a mixed-methods approach with 500 participants. The research explores how different aspects of social media engagement affect mental health outcomes.",
+    category: "Mental Health - Depression",
+    status: "Unpublished",
+    referenceCount: 45,
+    displayDetails: {
+      title: "The Impact of Social Media Usage on Depression Among University Students",
       date: "2025-01-15",
-      link: "/home",
       author: "Dr. Sarah Johnson",
       institution: "University of Mindanao"
-    },
-    {
-      id: 2,
-      title: "Sustainable Agriculture Practices in Davao Region",
-      date: "2009-01-20",
-      link: "/home",
+    }
+  },
+  {
+    id: 2,
+    title: "Correlation Between Academic Pressure and Depression in Medical Students",
+    date: "2020-06-20",
+    link: "/home",
+    author: "Prof. Manuel Santos",
+    institution: "Davao Medical School Foundation",
+    abstract: "An examination of the relationship between academic performance expectations and depressive symptoms among medical students, featuring a longitudinal study of 300 students over three years. The research highlights the impact of curriculum intensity on mental health.",
+    category: "Mental Health - Depression",
+    status: "Published",
+    referenceCount: 68,
+    displayDetails: {
+      title: "Correlation Between Academic Pressure and Depression in Medical Students",
+      date: "2020-06-20",
       author: "Prof. Manuel Santos",
       institution: "Davao Medical School Foundation"
-    },
-    {
-      id: 3,
-      title: "Mental Health Among College Students During Pandemic",
-      date: "2001-02-01",
-      link: "/home",
+    }
+  },
+  {
+    id: 3,
+    title: "Depression Patterns in Rural Communities of Davao Region",
+    date: "2015-03-15",
+    link: "/home",
+    author: "Dr. Maria Garcia",
+    institution: "San Pedro College",
+    abstract: "A comprehensive analysis of depression prevalence in rural Davao communities, examining socioeconomic factors, access to mental health resources, and traditional coping mechanisms. The study includes data from 1000 participants across 15 rural communities.",
+    category: "Mental Health - Depression",
+    status: "Published",
+    referenceCount: 92,
+    displayDetails: {
+      title: "Depression Patterns in Rural Communities of Davao Region",
+      date: "2015-03-15",
       author: "Dr. Maria Garcia",
       institution: "San Pedro College"
     }
-  ];
+  },
+  {
+    id: 4,
+    title: "Effectiveness of Online Therapy for Depression Treatment During COVID-19",
+    date: "2005-09-10",
+    link: "/home",
+    author: "Dr. Antonio Reyes",
+    institution: "Ateneo de Davao University",
+    abstract: "This research evaluates the efficacy of online therapeutic interventions for depression treatment, comparing outcomes between traditional face-to-face therapy and virtual sessions. The study includes data from 400 patients who received online therapy during the pandemic period.",
+    category: "Mental Health - Depression",
+    status: "Published",
+    referenceCount: 127,
+    displayDetails: {
+      title: "Effectiveness of Online Therapy for Depression Treatment During COVID-19",
+      date: "2005-09-10",
+      author: "Dr. Antonio Reyes",
+      institution: "Ateneo de Davao University"
+    }
+  },
+  {
+    id: 5,
+    title: "Genetic Factors in Depression: A Multi-Generational Study",
+    date: "1995-11-30",
+    link: "/home",
+    author: "Dr. Elena Cruz",
+    institution: "Davao Doctors College",
+    abstract: "A pioneering study examining genetic predisposition to depression across three generations of families in Davao City. The research includes DNA analysis, family history documentation, and environmental factor assessment of 150 families over a 25-year period.",
+    category: "Mental Health - Depression",
+    status: "Published",
+    referenceCount: 156,
+    displayDetails: {
+      title: "Genetic Factors in Depression: A Multi-Generational Study",
+      date: "1995-11-30",
+      author: "Dr. Elena Cruz",
+      institution: "Davao Doctors College"
+    }
+  }
+];
 
   const handleArticleClick = (article) => {
     if (!user) {
@@ -188,23 +254,20 @@ export default function Home() {
             </li>
             <li>
               <a href="#" className="text-gray-700 hover:text-indigo-600">
-                Popular
+              Date of Completion
               </a>
             </li>
             <li>
               <a href="#" className="text-gray-700 hover:text-indigo-600">
-                Recommended
+              Degree program
               </a>
             </li>
             <li>
               <a href="#" className="text-gray-700 hover:text-indigo-600">
-                By Author
+              Category
               </a>
             </li>
             <li>
-              <a href="#" className="text-gray-700 hover:text-indigo-600">
-                By Institution
-              </a>
             </li>
           </ul>
         </div>

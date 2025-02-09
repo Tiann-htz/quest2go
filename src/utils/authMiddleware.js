@@ -11,6 +11,12 @@ export function authMiddleware(handler) {
 
       const decoded = verify(token, process.env.JWT_SECRET);
       req.userId = decoded.userId;
+      req.isAdmin = decoded.isAdmin || false; // Add admin status to request
+
+      // For admin-only routes, check if user is admin
+      if (req.url.startsWith('/api/admin') && !decoded.isAdmin) {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
 
       return handler(req, res);
     } catch (error) {

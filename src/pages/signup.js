@@ -135,7 +135,7 @@ export default function SignUp() {
                   onChange={handleChange}
                   className="form-radio h-4 w-4 text-indigo-600"
                 />
-                <span className="ml-2 text-gray-700">Educator</span>
+                <span className="ml-2 text-gray-700">Student</span>
               </label>
               <label className="inline-flex items-center">
                 <input
@@ -186,7 +186,7 @@ export default function SignUp() {
                   </div>
                   <div>
                     <label htmlFor="course" className="block text-sm font-medium text-gray-700">
-                      Type of Course
+                      Type of Degree
                     </label>
                     <input
                       type="text"

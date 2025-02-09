@@ -253,7 +253,7 @@ export default function Home() {
                 }}
                 onKeyPress={handleSearchWithValidation}
                 className="flex-grow p-2 focus:outline-none ml-2 placeholder-gray-400 bg-transparent text-gray-800"
-                placeholder="Search by keyword, author, institution, or research topic..."
+                placeholder="Search by title, keywords, author, institution, or research topic..."
               />
             </div>
           </div>

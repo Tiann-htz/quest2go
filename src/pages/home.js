@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { MagnifyingGlassIcon, BellIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
 import axios from 'axios';
+import FilterSection from '@/components/FilterSection'; // Add this with your other imports
 import LoginModal from '@/components/LoginModal';
 import NetworkGraphModal from '@/components/NetworkGraphModal';
 import Image from 'next/image';
@@ -14,15 +15,60 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [showNetworkGraphModal, setShowNetworkGraphModal] = useState(false); // State for network graph modal
+  const [showNetworkGraphModal, setShowNetworkGraphModal] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchResults, setSearchResults] = useState([]); // Add this line
+  const [error, setError] = useState('');
   const sidebarRef = useRef(null);
   const { search } = router.query;
 
-  // Handle click outside sidebar
+  // Fetch initial data
+  useEffect(() => {
+    if (search) {
+      setSearchInput(decodeURIComponent(search));
+      fetchSearchResults(search);
+    } else {
+      // Fetch initial studies when no search query
+      fetchSearchResults('');
+    }
+  }, [search]);
+
+  const fetchSearchResults = async (query) => {
+    setIsLoading(true);
+    setError('');
+    try {
+      const response = await axios.get(`/api/search?query=${encodeURIComponent(query)}`);
+      setSearchResults(response.data.studies);
+    } catch (err) {
+      setError('Failed to fetch search results');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Check authentication
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await axios.get('/api/user');
+        if (response.data.user) {
+          setUser(response.data.user);
+        }
+      } catch (error) {
+        console.log('No authenticated user');
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    checkAuth();
+  }, [refreshKey]);
+
+  // Sidebar click outside handler
   useEffect(() => {
     function handleClickOutside(event) {
       if (sidebarRef.current && !sidebarRef.current.contains(event.target) &&
@@ -35,120 +81,25 @@ export default function Home() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Check for existing authentication but don't redirect
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await axios.get('/api/user');
-        if (response.data.user) {
-          console.log('User data after refresh:', response.data.user); // Debug logging
-          setUser(response.data.user);
-        }
-      } catch (error) {
-        console.log('No authenticated user');
-        setUser(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-  
-    checkAuth();
-  }, [refreshKey]);
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    if (searchInput.trim()) {
+      router.push({
+        pathname: '/home',
+        query: { search: encodeURIComponent(searchInput.trim()) }
+      });
+    }
+  };
 
-  // Sample research articles
-  // Sample research articles
-const articles = [
-  {
-    id: 1,
-    title: "The Impact of Social Media Usage on Depression Among University Students",
-    date: "2025-01-15",
-    link: "/home",
-    author: "Dr. Sarah Johnson",
-    institution: "University of Mindanao",
-    abstract: "This study investigates the correlation between social media usage patterns and depression rates among university students in Davao City, utilizing a mixed-methods approach with 500 participants. The research explores how different aspects of social media engagement affect mental health outcomes.",
-    category: "Mental Health - Depression",
-    status: "Unpublished",
-    referenceCount: 45,
-    displayDetails: {
-      title: "The Impact of Social Media Usage on Depression Among University Students",
-      date: "2025-01-15",
-      author: "Dr. Sarah Johnson",
-      institution: "University of Mindanao"
+  const handleSearchInputChange = (event) => {
+    setSearchInput(event.target.value);
+  };
+
+  const handleSearchKeyPress = (event) => {
+    if (event.key === 'Enter') {
+      handleSearchSubmit(event);
     }
-  },
-  {
-    id: 2,
-    title: "Correlation Between Academic Pressure and Depression in Medical Students",
-    date: "2020-06-20",
-    link: "/home",
-    author: "Prof. Manuel Santos",
-    institution: "Davao Medical School Foundation",
-    abstract: "An examination of the relationship between academic performance expectations and depressive symptoms among medical students, featuring a longitudinal study of 300 students over three years. The research highlights the impact of curriculum intensity on mental health.",
-    category: "Mental Health - Depression",
-    status: "Published",
-    referenceCount: 68,
-    displayDetails: {
-      title: "Correlation Between Academic Pressure and Depression in Medical Students",
-      date: "2020-06-20",
-      author: "Prof. Manuel Santos",
-      institution: "Davao Medical School Foundation"
-    }
-  },
-  {
-    id: 3,
-    title: "Depression Patterns in Rural Communities of Davao Region",
-    date: "2015-03-15",
-    link: "/home",
-    author: "Dr. Maria Garcia",
-    institution: "San Pedro College",
-    abstract: "A comprehensive analysis of depression prevalence in rural Davao communities, examining socioeconomic factors, access to mental health resources, and traditional coping mechanisms. The study includes data from 1000 participants across 15 rural communities.",
-    category: "Mental Health - Depression",
-    status: "Published",
-    referenceCount: 92,
-    displayDetails: {
-      title: "Depression Patterns in Rural Communities of Davao Region",
-      date: "2015-03-15",
-      author: "Dr. Maria Garcia",
-      institution: "San Pedro College"
-    }
-  },
-  {
-    id: 4,
-    title: "Effectiveness of Online Therapy for Depression Treatment During COVID-19",
-    date: "2005-09-10",
-    link: "/home",
-    author: "Dr. Antonio Reyes",
-    institution: "Ateneo de Davao University",
-    abstract: "This research evaluates the efficacy of online therapeutic interventions for depression treatment, comparing outcomes between traditional face-to-face therapy and virtual sessions. The study includes data from 400 patients who received online therapy during the pandemic period.",
-    category: "Mental Health - Depression",
-    status: "Published",
-    referenceCount: 127,
-    displayDetails: {
-      title: "Effectiveness of Online Therapy for Depression Treatment During COVID-19",
-      date: "2005-09-10",
-      author: "Dr. Antonio Reyes",
-      institution: "Ateneo de Davao University"
-    }
-  },
-  {
-    id: 5,
-    title: "Genetic Factors in Depression: A Multi-Generational Study",
-    date: "1995-11-30",
-    link: "/home",
-    author: "Dr. Elena Cruz",
-    institution: "Davao Doctors College",
-    abstract: "A pioneering study examining genetic predisposition to depression across three generations of families in Davao City. The research includes DNA analysis, family history documentation, and environmental factor assessment of 150 families over a 25-year period.",
-    category: "Mental Health - Depression",
-    status: "Published",
-    referenceCount: 156,
-    displayDetails: {
-      title: "Genetic Factors in Depression: A Multi-Generational Study",
-      date: "1995-11-30",
-      author: "Dr. Elena Cruz",
-      institution: "Davao Doctors College"
-    }
-  }
-];
+  };
 
   const handleArticleClick = (article) => {
     if (!user) {
@@ -156,7 +107,7 @@ const articles = [
       setShowLoginModal(true);
     } else {
       setSelectedArticle(article);
-      setShowNetworkGraphModal(true); // Show network graph modal
+      setShowNetworkGraphModal(true);
     }
   };
 
@@ -165,7 +116,7 @@ const articles = [
     setShowLoginModal(false);
     setRefreshKey(prevKey => prevKey + 1);
     if (selectedArticle) {
-      setShowNetworkGraphModal(true); // Show network graph modal after login
+      setShowNetworkGraphModal(true);
     }
   };
 
@@ -177,12 +128,6 @@ const articles = [
     } catch (error) {
       console.error('Logout error:', error);
     }
-  };
-
-  // Search functionality
-  const handleSearch = (event) => {
-    const value = event.target.value;
-    setSearchTerm(value);
   };
 
   const toggleSidebar = () => {
@@ -232,44 +177,28 @@ const articles = [
         {/* Search Bar */}
         <div className="px-4 py-4">
           <div className="relative">
-            <input
-              type="text"
-              placeholder="Search articles..."
-              value={searchTerm}
-              onChange={handleSearch}  
-              className="w-full px-4 py-2 pr-10 bg-gray-100 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute right-3 top-2.5" />
+            <form onSubmit={handleSearchSubmit}>
+              <input
+                type="text"
+                placeholder="Search articles..."
+                value={searchInput}
+                onChange={handleSearchInputChange}
+                onKeyPress={handleSearchKeyPress}
+                className="w-full px-4 py-2 pr-10 bg-gray-100 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                type="submit"
+                className="absolute right-2 top-2 p-1 hover:bg-gray-200 rounded-full"
+              >
+                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+              </button>
+            </form>
           </div>
         </div>
 
         {/* Filters */}
         <div className="px-4">
-          <h3 className="text-sm font-semibold text-gray-500 mb-2">Filters</h3>
-          <ul className="space-y-2">
-            <li>
-              <a href="#" className="text-gray-700 hover:text-indigo-600">
-                Recent
-              </a>
-            </li>
-            <li>
-              <a href="#" className="text-gray-700 hover:text-indigo-600">
-              Date of Completion
-              </a>
-            </li>
-            <li>
-              <a href="#" className="text-gray-700 hover:text-indigo-600">
-              Degree program
-              </a>
-            </li>
-            <li>
-              <a href="#" className="text-gray-700 hover:text-indigo-600">
-              Category
-              </a>
-            </li>
-            <li>
-            </li>
-          </ul>
+        <FilterSection />
         </div>
       </div>
 
@@ -278,7 +207,6 @@ const articles = [
         {/* Header */}
         <header className="bg-white shadow-sm">
           <div className="px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-            {/* Mobile sidebar toggle */}
             <button
               aria-label="Toggle sidebar"
               onClick={toggleSidebar}
@@ -312,9 +240,7 @@ const articles = [
                     <hr className="my-2" />
                     {user ? (
                       <>
-                        <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                          Settings
-                        </a>
+                        <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Settings</a>
                         <button
                           onClick={handleLogout}
                           className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -340,38 +266,81 @@ const articles = [
         {/* Main Content */}
         <main className="p-6">
           <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Research Articles</h2>
-            <div className="grid grid-cols-1 gap-4">
-              {articles.map((article) => (
-                <div
-                  key={article.id}
-                  onClick={() => handleArticleClick(article)}
-                  className="p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              {searchInput ? `Search Results for "${searchInput}"` : 'Recent Research Articles'}
+            </h2>
+            {isLoading ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+              </div>
+            ) : error ? (
+  <div className="text-center py-8">
+    <p className="text-red-500 font-medium mb-2">Sorry, no results found for your search.</p>
+    <p className="text-gray-600">Try searching by:</p>
+    <ul className="mt-2 text-gray-600">
+      <li>• Title of the research</li>
+      <li>• Author name</li>
+      <li>• Keywords</li>
+      <li>• Institution</li>
+    </ul>
+  </div>
+) : searchResults.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4">
+              {searchResults.map((article) => (
+  <div
+    key={article.research_id}
+    onClick={() => handleArticleClick(article)}
+    className="p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+  >
+    <h3 className="text-lg font-semibold text-gray-900">{article.title}</h3>
+    <p className="text-sm text-gray-600 mt-1">
+      Author: {article.author_name}
+    </p>
+    <p className="text-sm text-gray-600">Institution: {article.institution}</p>
+    <p className="text-sm text-gray-500 mt-2">
+      Published on: {new Date(article.date_added).toLocaleDateString()}
+    </p>
+  </div>
+))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500">No studies found matching your search criteria.</p>
+                <button 
+                  onClick={() => {
+                    setSearchInput('');
+                    router.push('/home');
+                  }}
+                  className="mt-4 text-indigo-600 hover:text-indigo-800"
                 >
-                  <h3 className="text-lg font-semibold text-gray-900">{article.title}</h3>
-                  <p className="text-sm text-gray-600 mt-1">Author: {article.author}</p>
-                  <p className="text-sm text-gray-600">Institution: {article.institution}</p>
-                  <p className="text-sm text-gray-500 mt-2">Published on: {article.date}</p>
-                </div>
-              ))}
-            </div>
+                  View all articles
+                </button>
+              </div>
+            )}
           </div>
         </main>
       </div>
 
-      {/* Login Modal */}
+      {/* Modals */}
       <LoginModal
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
         onSuccess={handleLoginSuccess}
       />
 
-      {/* Network Graph Modal */}
-      <NetworkGraphModal
-        isOpen={showNetworkGraphModal}
-        onClose={() => setShowNetworkGraphModal(false)}
-        articles={articles}
-      />
+<NetworkGraphModal
+  isOpen={showNetworkGraphModal}
+  onClose={() => setShowNetworkGraphModal(false)}
+  articles={searchResults.map(article => ({
+    id: article.research_id,
+    title: article.title,
+    author: article.author_name, // This will now use the author's full name
+    date: article.date_added,
+    abstract: article.abstract || 'No abstract available',
+    category: article.category || 'Uncategorized',
+    referenceCount: article.reference_count || 0
+  }))}
+/>
     </div>
   );
 }

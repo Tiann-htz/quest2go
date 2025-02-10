@@ -19,22 +19,22 @@ const AdminSidebar = () => {
       icon: LayoutDashboard
     },
     {
-        path: '/admin/studies',
-        name: 'Studies',
-        icon: Library
-      },
+      path: '/admin/studies',
+      name: 'Studies',
+      icon: Library
+    },
     {
-      path: '/admin/',
+      path: '/admin/analytics',
       name: 'Analytics & Logs',
       icon: LineChart
     },
     {
-      path: '/admin/',
+      path: '/admin/users',
       name: 'Users',
       icon: Users
     },
     {
-      path: '/admin/',
+      path: '/admin/chats',
       name: 'Chats',
       icon: MessageSquare
     },

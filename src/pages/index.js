@@ -16,6 +16,22 @@ export default function Home() {
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
   const router = useRouter();
+  const [isMobile, setIsMobile] = useState(false);
+
+useEffect(() => {
+  const checkMobile = () => {
+    setIsMobile(window.innerWidth < 768); // 768px is the md breakpoint in Tailwind
+  };
+  
+  // Check initially
+  checkMobile();
+  
+  // Add resize listener
+  window.addEventListener('resize', checkMobile);
+  
+  // Cleanup
+  return () => window.removeEventListener('resize', checkMobile);
+}, []);
 
   // Check authentication status on mount
   useEffect(() => {
@@ -36,19 +52,28 @@ export default function Home() {
   // Handle clicks outside dropdown
   useEffect(() => {
     function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      // Only handle click outside for mobile screens
+      if (isMobile && 
+          dropdownRef.current && 
+          !dropdownRef.current.contains(event.target) &&
+          !event.target.closest('.user-menu-button')
+      ) {
         setIsDropdownOpen(false);
       }
     }
+    
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isMobile]);
 
-  const handleLogout = async () => {
+  const handleLogout = async (e) => {
+    e.preventDefault(); // Prevent default action
+    e.stopPropagation(); // Stop event propagation
+    
     try {
       await axios.post('/api/logout');
       setUser(null);
-      setIsDropdownOpen(false);
+      setIsDropdownOpen(false); // Close dropdown after successful logout
       router.push('/');
     } catch (error) {
       console.error('Logout error:', error);
@@ -59,10 +84,12 @@ export default function Home() {
     if (e.key === 'Enter' || e.type === 'click') {
       if (searchQuery.trim()) {
         setSearchError(false);
-        router.push(`/home?search=${encodeURIComponent(searchQuery.trim())}`);
+        router.push({
+          pathname: '/home',
+          query: { search: encodeURIComponent(searchQuery.trim()) }
+        });
       } else {
         setSearchError(true);
-        // Remove error state after 3 seconds
         setTimeout(() => setSearchError(false), 3000);
       }
     }
@@ -88,15 +115,19 @@ export default function Home() {
         </div>
       );
     }
-
+  
     const initials = `${user.first_name[0]}${user.last_name[0]}`;
     const displayName = `${user.first_name} ${user.last_name}`;
-
+  
     return (
-      <div ref={dropdownRef} className="relative">
+      <div ref={dropdownRef} className="relative inline-block text-left">
         <button
-          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-          className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+          className="user-menu-button flex items-center space-x-2 hover:opacity-80 transition-opacity"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDropdownOpen(!isDropdownOpen);
+          }}
         >
           <div className="h-8 w-8 bg-indigo-600 rounded-full flex items-center justify-center text-white">
             {initials}
@@ -104,15 +135,24 @@ export default function Home() {
           <span className="text-gray-700 truncate max-w-[120px]">{displayName}</span>
           <ChevronDownIcon className="h-4 w-4 text-gray-500" />
         </button>
-
+  
         {isDropdownOpen && (
-          <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50">
-            <button
-              onClick={handleLogout}
-              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-            >
-              Logout
-            </button>
+          <div 
+            className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-[60]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="py-1">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleLogout(e);
+                }}
+                className="w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -221,7 +261,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Rest of the code remains the same */}
       {/* Main Section */}
       <section id="main" className="min-h-screen flex items-center justify-center relative overflow-hidden">
         <div className="absolute inset-0 w-full h-full z-0">

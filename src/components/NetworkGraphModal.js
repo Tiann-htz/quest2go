@@ -31,16 +31,45 @@ const NetworkGraphModal = ({ isOpen, onClose, articles }) => {
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       setIsLoading(true);
-      const timer = setTimeout(() => setIsLoading(false), 1500);
+      // Only show loading state if there are articles to display
+      const timer = setTimeout(() => setIsLoading(false), articles.length > 0 ? 1500 : 0);
       return () => {
         clearTimeout(timer);
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, articles.length]);
 
   if (!isOpen) return null;
 
+  if (articles.length === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      >
+        <motion.div
+          ref={modalRef}
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          className="bg-white rounded-lg shadow-lg p-6 max-w-md"
+        >
+          <h2 className="text-xl font-bold mb-4">No Articles Available</h2>
+          <p className="text-gray-600">There are no articles to display in the network graph.</p>
+          <button
+            onClick={onClose}
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            Close
+          </button>
+        </motion.div>
+      </motion.div>
+    );
+  }
+  
   // Sort articles by date in descending order
   const sortedArticles = [...articles].sort((a, b) => 
     new Date(b.date).getTime() - new Date(a.date).getTime()

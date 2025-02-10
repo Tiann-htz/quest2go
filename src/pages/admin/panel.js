@@ -238,7 +238,7 @@ export default function AdminPanel() {
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {users.map((user) => (
-                          <tr key={user.account_id}>
+                          <tr key={user.user_id}>
                             <td className="px-6 py-4 whitespace-nowrap">
                               {user.first_name} {user.last_name}
                             </td>

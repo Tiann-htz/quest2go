@@ -6,6 +6,7 @@ import { authMiddleware } from '../../utils/authMiddleware';
 import { serialize } from 'cookie';
 
 const handler = async (req, res) => {
+  console.log('API handler called:', req.method, req.url);
   const { method } = req;
   const { pathname } = parse(req.url, true);
 
@@ -22,7 +23,7 @@ const handler = async (req, res) => {
           await handleLogout(req, res);
         } else if (pathname === '/api/admin/studies') {
           return authMiddleware(createStudy)(req, res); 
-        }
+        } 
         break;
       case 'GET':
         if (pathname === '/api/user') {
@@ -31,6 +32,8 @@ const handler = async (req, res) => {
           return authMiddleware(getUserDataAdmin)(req, res);
         } else if (pathname === '/api/admin/studies') {
           return authMiddleware(getStudies)(req, res);
+        } else if (pathname === '/api/search') {
+          return searchStudies(req, res);
         }
         break;
       case 'PUT':
@@ -53,8 +56,82 @@ const handler = async (req, res) => {
   }
 };
 
+//Search section
+async function searchStudies(req, res) {
+  const { query: searchQuery } = req.query;
+  
+  try {
+    if (!searchQuery || searchQuery.trim() === '') {
+      // Existing code for empty search remains the same
+      const allStudies = await query(`
+        SELECT 
+          rs.*,
+          CONCAT(u.first_name, ' ', u.last_name) as author_name,
+          u.user_type as author_type
+        FROM research_studies rs
+        LEFT JOIN user u ON rs.author_id = u.user_id
+        ORDER BY rs.date_added DESC 
+        LIMIT 10
+      `);
+      return res.status(200).json({ studies: allStudies });
+    }
 
-//Getting Research Studies in database
+    // Use the full search query as one term instead of splitting
+    const searchTerm = `%${searchQuery.toLowerCase()}%`;
+    
+    const searchSql = `
+      SELECT DISTINCT
+        rs.*,
+        CONCAT(u.first_name, ' ', u.last_name) as author_name,
+        u.user_type as author_type
+      FROM research_studies rs
+      LEFT JOIN user u ON rs.author_id = u.user_id
+      WHERE 
+        LOWER(rs.title) LIKE ? 
+        OR LOWER(rs.keywords) LIKE ? 
+        OR LOWER(rs.abstract) LIKE ?
+        OR LOWER(rs.institution) LIKE ? 
+        OR LOWER(rs.category) LIKE ?
+        OR LOWER(u.first_name) LIKE ? 
+        OR LOWER(u.last_name) LIKE ?
+        OR LOWER(CONCAT(u.first_name, ' ', u.last_name)) LIKE ?
+      ORDER BY 
+        CASE 
+          WHEN LOWER(rs.title) LIKE ? THEN 1
+          WHEN LOWER(rs.keywords) LIKE ? THEN 2
+          ELSE 3
+        END,
+        rs.date_added DESC
+    `;
+
+    const parameters = [
+      searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, 
+      searchTerm, searchTerm, searchTerm, searchTerm, searchTerm
+    ];
+
+    const studies = await query(searchSql, parameters);
+
+    if (studies.length === 0) {
+      return res.status(404).json({ 
+        message: 'No studies found matching your search criteria',
+        studies: [] 
+      });
+    }
+
+    return res.status(200).json({ studies });
+
+  } catch (error) {
+    console.error('Search error:', error);
+    return res.status(500).json({ 
+      error: 'Error searching studies',
+      details: error.message 
+    });
+  }
+}
+
+
+
+//Research Studies Admin section - Adding, Updating, Deleting
 async function getStudies(req, res) {
   try {
     const studies = await query(
@@ -67,7 +144,6 @@ async function getStudies(req, res) {
   }
 }
 
-//For adding-updating-deleting studies section
 async function createStudy(req, res) {
   try {
     const {
@@ -168,9 +244,7 @@ async function deleteStudy(req, res) {
 
 
 
-
-
-//Users - Login-Signup Section
+//Admin section
 async function handleAdminLogin(req, res) {
   try {
     const { email, password } = req.body;
@@ -179,7 +253,6 @@ async function handleAdminLogin(req, res) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // Query to get admin account
     const [admin] = await query(
       'SELECT * FROM admin_accounts WHERE email = ?',
       [email]
@@ -189,15 +262,12 @@ async function handleAdminLogin(req, res) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Direct password comparison for admin accounts
-    // NOTE: This is temporary - in production, passwords should always be hashed
     const isValidPassword = password === admin.password;
     
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Generate JWT token with admin flag
     const token = sign(
       {
         userId: admin.admin_id,
@@ -209,7 +279,6 @@ async function handleAdminLogin(req, res) {
       { expiresIn: '24h' }
     );
 
-    // Set HTTP-only cookie
     res.setHeader('Set-Cookie', serialize('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -218,7 +287,6 @@ async function handleAdminLogin(req, res) {
       path: '/'
     }));
 
-    // Return success response
     res.status(200).json({
       message: 'Admin login successful',
       admin: {
@@ -234,17 +302,44 @@ async function handleAdminLogin(req, res) {
   }
 }
 
+async function getUserDataAdmin(req, res) {
+  try {
+    const [admin] = await query(
+      'SELECT admin_id, email, username FROM admin_accounts WHERE admin_id = ?',
+      [req.userId]
+    );
+
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+
+    const adminData = {
+      ...admin,
+      isAdmin: true
+    };
+
+    res.status(200).json({ user: adminData });
+  } catch (error) {
+    console.error('Error fetching admin data:', error);
+    res.status(500).json({ error: 'Error fetching admin data' });
+  }
+}
+
+
+
+
+
+//Users Login, Logout, Signup section
 async function handleLogin(req, res) {
   try {
     const { email, password } = req.body;
 
-    // Validate input
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
     const users = await query(
-      'SELECT * FROM registered_accounts WHERE email = ?',
+      'SELECT * FROM user WHERE email = ?',
       [email]
     );
 
@@ -261,11 +356,10 @@ async function handleLogin(req, res) {
 
     let additionalInfo = {};
 
-    // Get additional info based on user type
     if (user.user_type === 'Educator') {
       const [educatorInfo] = await query(
-        'SELECT institution_name, year_level, course_type FROM educators WHERE account_id = ?',
-        [user.account_id]
+        'SELECT institution_name, year_level, course_type FROM educators WHERE user_id = ?',
+        [user.user_id]
       );
       if (educatorInfo) {
         additionalInfo = {
@@ -276,8 +370,8 @@ async function handleLogin(req, res) {
       }
     } else if (user.user_type === 'Researcher') {
       const [researcherInfo] = await query(
-        'SELECT organization_name FROM researchers WHERE account_id = ?',
-        [user.account_id]
+        'SELECT organization_name FROM researchers WHERE user_id = ?',
+        [user.user_id]
       );
       if (researcherInfo) {
         additionalInfo = {
@@ -286,10 +380,9 @@ async function handleLogin(req, res) {
       }
     }
 
-    // Generate JWT token
     const token = sign(
       {
-        userId: user.account_id,
+        userId: user.user_id,
         email: user.email,
         userType: user.user_type
       },
@@ -297,18 +390,16 @@ async function handleLogin(req, res) {
       { expiresIn: '24h' }
     );
 
-    // Set HTTP-only cookie
     res.setHeader('Set-Cookie', serialize('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 86400, // 24 hours
+      maxAge: 86400,
       path: '/'
     }));
 
-    // Prepare user data response (excluding sensitive information)
     const userData = {
-      id: user.account_id,
+      id: user.user_id,
       email: user.email,
       firstName: user.first_name,
       lastName: user.last_name,
@@ -342,7 +433,7 @@ async function handleLogout(req, res) {
 async function getUserData(req, res) {
   try {
     const users = await query(
-      'SELECT account_id, email, first_name, last_name, user_type FROM registered_accounts WHERE account_id = ?',
+      'SELECT user_id, email, first_name, last_name, user_type FROM user WHERE user_id = ?',
       [req.userId]
     );
 
@@ -355,30 +446,6 @@ async function getUserData(req, res) {
   } catch (error) {
     console.error('Error fetching user data:', error);
     res.status(500).json({ error: 'Error fetching user data' });
-  }
-}
-
-async function getUserDataAdmin(req, res) {
-  try {
-    const [admin] = await query(
-      'SELECT admin_id, email, username FROM admin_accounts WHERE admin_id = ?',
-      [req.userId]
-    );
-
-    if (!admin) {
-      return res.status(404).json({ error: 'Admin not found' });
-    }
-
-    // Add isAdmin flag to the response
-    const adminData = {
-      ...admin,
-      isAdmin: true
-    };
-
-    res.status(200).json({ user: adminData });
-  } catch (error) {
-    console.error('Error fetching admin data:', error);
-    res.status(500).json({ error: 'Error fetching admin data' });
   }
 }
 
@@ -396,9 +463,8 @@ async function handleSignup(req, res) {
       organization
     } = req.body;
 
-    // Check if email already exists
     const existingUser = await query(
-      'SELECT * FROM registered_accounts WHERE email = ?',
+      'SELECT * FROM user WHERE email = ?',
       [email]
     );
 
@@ -406,33 +472,29 @@ async function handleSignup(req, res) {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert into registered_accounts
     const accountResult = await query(
-      'INSERT INTO registered_accounts (first_name, last_name, email, password, user_type) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO user (first_name, last_name, email, password, user_type) VALUES (?, ?, ?, ?, ?)',
       [firstName, lastName, email, hashedPassword, userType]
     );
 
-    const accountId = accountResult.insertId;
+    const userId = accountResult.insertId;
 
-    // Insert additional info based on user type
     if (userType === 'Educator') {
       await query(
-        'INSERT INTO educators (account_id, institution_name, year_level, course_type) VALUES (?, ?, ?, ?)',
-        [accountId, institution, yearLevel, course]
+        'INSERT INTO educators (user_id, institution_name, year_level, course_type) VALUES (?, ?, ?, ?)',
+        [userId, institution, yearLevel, course]
       );
     } else if (userType === 'Researcher') {
       await query(
-        'INSERT INTO researchers (account_id, organization_name) VALUES (?, ?)',
-        [accountId, organization]
+        'INSERT INTO researchers (user_id, organization_name) VALUES (?, ?)',
+        [userId, organization]
       );
     }
 
-    // Generate JWT token
     const token = sign(
-      { userId: accountId, email, userType },
+      { userId, email, userType },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -441,7 +503,7 @@ async function handleSignup(req, res) {
       message: 'Account created successfully',
       token,
       user: {
-        id: accountId,
+        id: userId,
         email,
         userType,
         firstName,

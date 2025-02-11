@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 import Head from 'next/head';
 import AdminSidebar from './AdminSidebar';
-import { Plus, Edit2, Trash2, X, Menu, Search } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Menu, Search, Link as LinkIcon } from 'lucide-react';
 
 export default function Studies() {
   const router = useRouter();
@@ -13,6 +13,12 @@ export default function Studies() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentStudy, setCurrentStudy] = useState(null);
+  const [references, setReferences] = useState([]);
+  const [newReference, setNewReference] = useState({
+    reference_link: '',
+    reference_details: ''
+  });
+
   const [formData, setFormData] = useState({
     title: '',
     abstract: '',
@@ -21,13 +27,19 @@ export default function Studies() {
     degree_program: '',
     category: '',
     institution: '',
-    author_id: '',
-    status: 'Pending'
+    author: '',
+    status: 'Non-Available'
   });
 
   useEffect(() => {
     fetchStudies();
   }, []);
+
+  useEffect(() => {
+    if (currentStudy) {
+      fetchReferences(currentStudy.research_id);
+    }
+  }, [currentStudy]);
 
   const fetchStudies = async () => {
     try {
@@ -40,6 +52,15 @@ export default function Studies() {
     }
   };
 
+  const fetchReferences = async (researchId) => {
+    try {
+      const response = await axios.get(`/api/admin/references/${researchId}`);
+      setReferences(response.data.references);
+    } catch (error) {
+      console.error('Error fetching references:', error);
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -48,14 +69,43 @@ export default function Studies() {
     }));
   };
 
+  const handleAddReference = () => {
+    if (newReference.reference_link && newReference.reference_details) {
+      setReferences([...references, { ...newReference, temp_id: Date.now() }]);
+      setNewReference({ reference_link: '', reference_details: '' });
+    }
+  };
+
+  const handleRemoveReference = async (referenceId) => {
+    if (window.confirm('Are you sure you want to remove this reference?')) {
+      if (typeof referenceId === 'number') {
+        try {
+          await axios.delete(`/api/admin/references/${referenceId}`);
+        } catch (error) {
+          console.error('Error deleting reference:', error);
+          return;
+        }
+      }
+      setReferences(references.filter(ref => 
+        ref.reference_id !== referenceId && ref.temp_id !== referenceId
+      ));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      let studyId;
       if (currentStudy) {
         await axios.put(`/api/admin/studies/${currentStudy.research_id}`, formData);
+        studyId = currentStudy.research_id;
       } else {
-        await axios.post('/api/admin/studies', formData);
+        const response = await axios.post('/api/admin/studies', formData);
+        studyId = response.data.study_id;
       }
+
+      await axios.post(`/api/admin/references/${studyId}`, { references });
+
       setIsModalOpen(false);
       setCurrentStudy(null);
       setFormData({
@@ -66,9 +116,10 @@ export default function Studies() {
         degree_program: '',
         category: '',
         institution: '',
-        author_id: '',
-        status: 'Pending'
+        author: '',
+        status: 'Non-Available'
       });
+      setReferences([]);
       fetchStudies();
     } catch (error) {
       console.error('Error saving study:', error);
@@ -85,7 +136,7 @@ export default function Studies() {
       degree_program: study.degree_program,
       category: study.category,
       institution: study.institution,
-      author_id: study.author_id,
+      author: study.author,
       status: study.status
     });
     setIsModalOpen(true);
@@ -189,8 +240,8 @@ export default function Studies() {
                       degree_program: '',
                       category: '',
                       institution: '',
-                      author_id: '',
-                      status: 'Pending'
+                      author: '',
+                      status: 'Non-Available'  
                     });
                     setIsModalOpen(true);
                   }}
@@ -234,14 +285,13 @@ export default function Studies() {
                                 <div className="text-sm text-gray-500">{study.institution}</div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
-                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                  study.status === 'Published' ? 'bg-green-100 text-green-800' :
-                                  study.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {study.status}
-                                </span>
-                              </td>
+        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+          study.status === 'Available' ? 'bg-green-100 text-green-800' :
+          'bg-red-100 text-red-800'
+        }`}>
+          {study.status}
+        </span>
+      </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <button
                                   onClick={() => handleEdit(study)}
@@ -268,7 +318,6 @@ export default function Studies() {
         </div>
       </div>
 
-      {/* Add/Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -276,7 +325,7 @@ export default function Studies() {
               <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
             </div>
 
-            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full sm:p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-medium text-gray-900">
                   {currentStudy ? 'Edit Study' : 'Add New Study'}
@@ -379,30 +428,95 @@ export default function Studies() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Author ID</label>
-                    <input
-                      type="number"
-                      name="author_id"
-                      value={formData.author_id}
-                      onChange={handleInputChange}
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                      required
-                    />
+  <label className="block text-sm font-medium text-gray-700">Author</label>
+  <input
+    type="text"
+    name="author"
+    value={formData.author}
+    onChange={handleInputChange}
+    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+    required
+  />
+</div>
+
+<div>
+        <label className="block text-sm font-medium text-gray-700">Status</label>
+        <select
+          name="status"
+          value={formData.status}
+          onChange={handleInputChange}
+          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          required
+        >
+          <option value="Non-Available">Non-Available</option>
+          <option value="Available">Available</option>
+        </select>
+      </div>
+                 {/* Add New Reference */}
+                 <div className="flex gap-3 mb-4">
+                    <div className="flex-1">
+                      <input
+                        type="url"
+                        placeholder="Reference Link"
+                        value={newReference.reference_link}
+                        onChange={(e) => setNewReference({
+                          ...newReference,
+                          reference_link: e.target.value
+                        })}
+                        className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        placeholder="Reference Details"
+                        value={newReference.reference_details}
+                        onChange={(e) => setNewReference({
+                          ...newReference,
+                          reference_details: e.target.value
+                        })}
+                        className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddReference}
+                      className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+                    >
+                      Add
+                    </button>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Status</label>
-                    <select
-                      name="status"
-                      value={formData.status}
-                      onChange={handleInputChange}
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                      required
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="Published">Published</option>
-                      <option value="Unpublished">Unpublished</option>
-                    </select>
+                  {/* References List */}
+                  <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-md">
+                    {references.map((ref) => (
+                      <div
+                        key={ref.reference_id || ref.temp_id}
+                        className="flex items-center gap-3 p-3 border-b border-gray-200 last:border-b-0 hover:bg-gray-50"
+                      >
+                        <LinkIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-indigo-600 truncate">
+                            {ref.reference_link}
+                          </div>
+                          <div className="text-sm text-gray-500 truncate">
+                            {ref.reference_details}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveReference(ref.reference_id || ref.temp_id)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ))}
+                    {references.length === 0 && (
+                      <div className="p-4 text-center text-gray-500">
+                        No references added yet
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -429,4 +543,3 @@ export default function Studies() {
     </div>
   );
 }
-                        

@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import Graph from "react-graph-vis";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronRightIcon, ChevronLeftIcon } from "lucide-react";
+import { ChevronRightIcon, ChevronLeftIcon, ChevronDownIcon, ChevronUpIcon, ExternalLinkIcon } from "lucide-react";
+import axios from 'axios';
 import "vis-network/styles/vis-network.css";
 
 const PulseLoader = () => (
@@ -14,6 +15,84 @@ const PulseLoader = () => (
     </div>
   </div>
 );
+
+const ReferencesList = ({ studyId, referenceCount }) => {
+  const [references, setReferences] = useState([]);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchReferences = async () => {
+    if (!isExpanded) {
+      setIsLoading(true);
+      try {
+        const response = await axios.get(`/api/study/references?studyId=${studyId}`);
+        setReferences(response.data.references);
+      } catch (error) {
+        console.error('Error fetching references:', error);
+      }
+      setIsLoading(false);
+    }
+    setIsExpanded(!isExpanded);
+  };
+
+  return (
+    <div className="mt-4">
+      <button
+        onClick={fetchReferences}
+        className="flex items-center space-x-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+      >
+        <span>References: {referenceCount}</span>
+        {isExpanded ? (
+          <ChevronUpIcon className="w-4 h-4" />
+        ) : (
+          <ChevronDownIcon className="w-4 h-4" />
+        )}
+      </button>
+      
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="mt-2"
+          >
+            {isLoading ? (
+              <div className="flex justify-center py-4">
+                <div className="w-6 h-6 border-2 border-indigo-600 rounded-full animate-spin border-t-transparent"></div>
+              </div>
+            ) : (
+              <div className="max-h-60 overflow-y-auto pr-2 space-y-3">
+                {references.map((ref) => (
+                  <div key={ref.reference_id} className="bg-gray-50 p-3 rounded-lg">
+                    <a
+                      href={ref.reference_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-indigo-600 hover:text-indigo-800 flex items-center space-x-1"
+                    >
+                      <span className="truncate">{ref.reference_link}</span>
+                      <ExternalLinkIcon className="w-4 h-4 flex-shrink-0" />
+                    </a>
+                    <div 
+                      className="text-sm text-gray-600 mt-1 truncate group relative"
+                      title={ref.reference_details}
+                    >
+                      {ref.reference_details}
+                      <div className="hidden group-hover:block absolute left-0 top-full mt-2 p-2 bg-white border rounded-lg shadow-lg z-10 max-w-md">
+                        {ref.reference_details}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 const NetworkGraphModal = ({ isOpen, onClose, articles }) => {
   const modalRef = useRef(null);
@@ -229,10 +308,10 @@ const NetworkGraphModal = ({ isOpen, onClose, articles }) => {
             </p>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium text-gray-500">References:</span>
-            <span className="text-sm text-gray-900">{selectedArticle.referenceCount}</span>
-          </div>
+          <ReferencesList 
+            studyId={selectedArticle.id} 
+            referenceCount={selectedArticle.referenceCount}
+          />
         </div>
       ) : (
         <div className="flex items-center justify-center h-full text-gray-500">

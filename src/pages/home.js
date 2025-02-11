@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { MagnifyingGlassIcon, BellIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
 import axios from 'axios';
-import FilterSection from '@/components/FilterSection'; // Add this with your other imports
+import FilterSection from '@/components/FilterSection'; 
 import LoginModal from '@/components/LoginModal';
 import NetworkGraphModal from '@/components/NetworkGraphModal';
 import Image from 'next/image';
@@ -23,30 +23,50 @@ export default function Home() {
   const [searchResults, setSearchResults] = useState([]); // Add this line
   const [error, setError] = useState('');
   const sidebarRef = useRef(null);
+  const [activeFilters, setActiveFilters] = useState(null);
+  const [mainContentLoading, setMainContentLoading] = useState(false);
+  const [savedFilters, setSavedFilters] = useState(null);
+
   const { search } = router.query;
+  const handleFilterChange = (newFilters) => {
+    setActiveFilters(newFilters);
+    fetchSearchResults(searchInput, newFilters);
+  };
 
   // Fetch initial data
   useEffect(() => {
     if (search) {
-      setSearchInput(decodeURIComponent(search));
-      fetchSearchResults(search);
+      const decodedSearch = decodeURIComponent(search);
+      setSearchInput(decodedSearch);
+      fetchSearchResults(decodedSearch);
     } else {
-      // Fetch initial studies when no search query
       fetchSearchResults('');
     }
   }, [search]);
 
-  const fetchSearchResults = async (query) => {
-    setIsLoading(true);
+  const fetchSearchResults = async (query, filters = null) => {
+    setMainContentLoading(true);
     setError('');
     try {
-      const response = await axios.get(`/api/search?query=${encodeURIComponent(query)}`);
-      setSearchResults(response.data.studies);
+      const encodedQuery = query ? encodeURIComponent(query) : '';
+      const filterParam = filters ? `&filters=${encodeURIComponent(JSON.stringify(filters))}` : '';
+      const response = await axios.get(`/api/search?query=${encodedQuery}${filterParam}`);
+      
+      if (response.data && response.data.studies) {
+        setSearchResults(response.data.studies);
+      } else {
+        setSearchResults([]);
+      }
     } catch (err) {
-      setError('Failed to fetch search results');
-      console.error(err);
+      console.error('Search error:', err);
+      setSearchResults([]);
+      if (err.response?.status === 404) {
+        setError('No results found for your search. Try different keywords or filters.');
+      } else {
+        setError('An error occurred while searching. Please try again.');
+      }
     } finally {
-      setIsLoading(false);
+      setMainContentLoading(false);
     }
   };
 
@@ -86,8 +106,9 @@ export default function Home() {
     if (searchInput.trim()) {
       router.push({
         pathname: '/home',
-        query: { search: encodeURIComponent(searchInput.trim()) }
-      });
+        query: { search: searchInput.trim() }
+      }, undefined, { shallow: true });
+      fetchSearchResults(searchInput.trim());
     }
   };
 
@@ -198,7 +219,10 @@ export default function Home() {
 
         {/* Filters */}
         <div className="px-4">
-        <FilterSection />
+        <FilterSection 
+        onFilterChange={handleFilterChange} 
+        initialFilters={savedFilters}
+      />
         </div>
       </div>
 
@@ -265,15 +289,15 @@ export default function Home() {
 
         {/* Main Content */}
         <main className="p-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              {searchInput ? `Search Results for "${searchInput}"` : 'Recent Research Articles'}
-            </h2>
-            {isLoading ? (
-              <div className="flex justify-center items-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-              </div>
-            ) : error ? (
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">
+            {searchInput ? `Search Results for "${searchInput}"` : 'Recent Research Articles'}
+          </h2>
+          {mainContentLoading ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            </div>
+          ) : error ? (
   <div className="text-center py-8">
     <p className="text-red-500 font-medium mb-2">Sorry, no results found for your search.</p>
     <p className="text-gray-600">Try searching by:</p>
@@ -294,11 +318,11 @@ export default function Home() {
   >
     <h3 className="text-lg font-semibold text-gray-900">{article.title}</h3>
     <p className="text-sm text-gray-600 mt-1">
-      Author: {article.author_name}
+      Author: {article.author_name || article.author || 'Unknown Author'}
     </p>
-    <p className="text-sm text-gray-600">Institution: {article.institution}</p>
+    <p className="text-sm text-gray-600">Institution: {article.institution || 'Not specified'}</p>
     <p className="text-sm text-gray-500 mt-2">
-      Published on: {new Date(article.date_added).toLocaleDateString()}
+      Posted on: {new Date(article.date_added).toLocaleDateString()}
     </p>
   </div>
 ))}
@@ -334,7 +358,7 @@ export default function Home() {
   articles={searchResults.map(article => ({
     id: article.research_id,
     title: article.title,
-    author: article.author_name, // This will now use the author's full name
+    author: article.author_name || article.author || 'Unknown Author',
     date: article.date_added,
     abstract: article.abstract || 'No abstract available',
     category: article.category || 'Uncategorized',

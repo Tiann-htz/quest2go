@@ -23,7 +23,9 @@ const handler = async (req, res) => {
           await handleLogout(req, res);
         } else if (pathname === '/api/admin/studies') {
           return authMiddleware(createStudy)(req, res); 
-        } 
+        } else if (pathname.startsWith('/api/admin/references/') && method === 'POST') {
+          return updateReferences(req, res);
+        }
         break;
       case 'GET':
         if (pathname === '/api/user') {
@@ -34,6 +36,12 @@ const handler = async (req, res) => {
           return authMiddleware(getStudies)(req, res);
         } else if (pathname === '/api/search') {
           return searchStudies(req, res);
+        } else if (method === 'GET' && pathname === '/api/filter-options') {
+          return getFilterOptions(req, res);
+        } else if (pathname.startsWith('/api/admin/references/') && method === 'GET') {
+          return getReferences(req, res);
+        } else if (pathname === '/api/study/references') {
+          return getStudyReferences(req, res);
         }
         break;
       case 'PUT':
@@ -44,6 +52,8 @@ const handler = async (req, res) => {
       case 'DELETE':
         if (pathname.startsWith('/api/admin/studies/')) {
           return authMiddleware(deleteStudy)(req, res);
+        } else if (pathname.startsWith('/api/admin/references/') && method === 'DELETE') {
+          return deleteReference(req, res);
         }
         break;
       default:
@@ -56,76 +66,75 @@ const handler = async (req, res) => {
   }
 };
 
-//Search section
-async function searchStudies(req, res) {
-  const { query: searchQuery } = req.query;
-  
+async function getStudyReferences(req, res) {
   try {
-    if (!searchQuery || searchQuery.trim() === '') {
-      // Existing code for empty search remains the same
-      const allStudies = await query(`
-        SELECT 
-          rs.*,
-          CONCAT(u.first_name, ' ', u.last_name) as author_name,
-          u.user_type as author_type
-        FROM research_studies rs
-        LEFT JOIN user u ON rs.author_id = u.user_id
-        ORDER BY rs.date_added DESC 
-        LIMIT 10
-      `);
-      return res.status(200).json({ studies: allStudies });
-    }
-
-    // Use the full search query as one term instead of splitting
-    const searchTerm = `%${searchQuery.toLowerCase()}%`;
-    
-    const searchSql = `
-      SELECT DISTINCT
-        rs.*,
-        CONCAT(u.first_name, ' ', u.last_name) as author_name,
-        u.user_type as author_type
-      FROM research_studies rs
-      LEFT JOIN user u ON rs.author_id = u.user_id
-      WHERE 
-        LOWER(rs.title) LIKE ? 
-        OR LOWER(rs.keywords) LIKE ? 
-        OR LOWER(rs.abstract) LIKE ?
-        OR LOWER(rs.institution) LIKE ? 
-        OR LOWER(rs.category) LIKE ?
-        OR LOWER(u.first_name) LIKE ? 
-        OR LOWER(u.last_name) LIKE ?
-        OR LOWER(CONCAT(u.first_name, ' ', u.last_name)) LIKE ?
-      ORDER BY 
-        CASE 
-          WHEN LOWER(rs.title) LIKE ? THEN 1
-          WHEN LOWER(rs.keywords) LIKE ? THEN 2
-          ELSE 3
-        END,
-        rs.date_added DESC
-    `;
-
-    const parameters = [
-      searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, 
-      searchTerm, searchTerm, searchTerm, searchTerm, searchTerm
-    ];
-
-    const studies = await query(searchSql, parameters);
-
-    if (studies.length === 0) {
-      return res.status(404).json({ 
-        message: 'No studies found matching your search criteria',
-        studies: [] 
-      });
-    }
-
-    return res.status(200).json({ studies });
-
+    const { studyId } = req.query;
+    const references = await query(
+      'SELECT reference_id, reference_link, reference_details FROM study_references WHERE research_id = ?',
+      [studyId]
+    );
+    res.status(200).json({ references });
   } catch (error) {
-    console.error('Search error:', error);
-    return res.status(500).json({ 
-      error: 'Error searching studies',
-      details: error.message 
-    });
+    console.error('Error fetching references:', error);
+    res.status(500).json({ error: 'Error fetching references' });
+  }
+}
+
+async function getReferences(req, res) {
+  try {
+    const studyId = req.url.split('/').pop();
+    const references = await query(
+      'SELECT * FROM study_references WHERE research_id = ?',
+      [studyId]
+    );
+    res.status(200).json({ references });
+  } catch (error) {
+    console.error('Error fetching references:', error);
+    res.status(500).json({ error: 'Error fetching references' });
+  }
+}
+
+// Add or update references for a study
+async function updateReferences(req, res) {
+  try {
+    const studyId = req.url.split('/').pop();
+    const { references } = req.body;
+
+    // Start a transaction
+    await query('START TRANSACTION');
+
+    // Delete existing references
+    await query('DELETE FROM study_references WHERE research_id = ?', [studyId]);
+
+    // Insert new references
+    for (const ref of references) {
+      await query(
+        'INSERT INTO study_references (research_id, reference_link, reference_details) VALUES (?, ?, ?)',
+        [studyId, ref.reference_link, ref.reference_details]
+      );
+    }
+
+    // Commit the transaction
+    await query('COMMIT');
+
+    res.status(200).json({ message: 'References updated successfully' });
+  } catch (error) {
+    // Rollback in case of error
+    await query('ROLLBACK');
+    console.error('Error updating references:', error);
+    res.status(500).json({ error: 'Error updating references' });
+  }
+}
+
+// Delete a single reference
+async function deleteReference(req, res) {
+  try {
+    const referenceId = req.url.split('/').pop();
+    await query('DELETE FROM study_references WHERE reference_id = ?', [referenceId]);
+    res.status(200).json({ message: 'Reference deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting reference:', error);
+    res.status(500).json({ error: 'Error deleting reference' });
   }
 }
 
@@ -154,14 +163,19 @@ async function createStudy(req, res) {
       degree_program,
       category,
       institution,
-      author_id,
+      author,
       status
     } = req.body;
+
+    // Validate status
+    if (status !== 'Available' && status !== 'Non-Available') {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
 
     const result = await query(
       `INSERT INTO research_studies 
        (title, abstract, keywords, year_of_completion, degree_program, 
-        category, institution, author_id, status)
+        category, institution, author, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         title,
@@ -171,7 +185,7 @@ async function createStudy(req, res) {
         degree_program,
         category,
         institution,
-        author_id,
+        author,
         status
       ]
     );
@@ -197,15 +211,20 @@ async function updateStudy(req, res) {
       degree_program,
       category,
       institution,
-      author_id,
+      author,
       status
     } = req.body;
+
+    // Validate status
+    if (status !== 'Available' && status !== 'Non-Available') {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
 
     await query(
       `UPDATE research_studies 
        SET title = ?, abstract = ?, keywords = ?, 
            year_of_completion = ?, degree_program = ?,
-           category = ?, institution = ?, author_id = ?, 
+           category = ?, institution = ?, author = ?, 
            status = ?
        WHERE research_id = ?`,
       [
@@ -216,7 +235,7 @@ async function updateStudy(req, res) {
         degree_program,
         category,
         institution,
-        author_id,
+        author,
         status,
         studyId
       ]
@@ -241,6 +260,121 @@ async function deleteStudy(req, res) {
 }
 
 
+
+
+
+
+
+async function getFilterOptions(req, res) {
+  try {
+    const [degrees, categories, institutions, years] = await Promise.all([
+      query('SELECT DISTINCT degree_program FROM research_studies WHERE degree_program IS NOT NULL ORDER BY degree_program'),
+      query('SELECT DISTINCT category FROM research_studies WHERE category IS NOT NULL ORDER BY category'),
+      query('SELECT DISTINCT institution FROM research_studies WHERE institution IS NOT NULL ORDER BY institution'),
+      query('SELECT MIN(year_of_completion) as min_year, MAX(year_of_completion) as max_year FROM research_studies')
+    ]);
+
+    res.status(200).json({
+      degrees: degrees.map(d => d.degree_program),
+      categories: categories.map(c => c.category),
+      institutions: institutions.map(i => i.institution),
+      years: {
+        min: years[0].min_year,
+        max: years[0].max_year
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching filter options:', error);
+    res.status(500).json({ error: 'Error fetching filter options' });
+  }
+}
+
+//Search section
+async function searchStudies(req, res) {
+  const { query: searchQuery } = req.query;
+  const filters = req.query.filters ? JSON.parse(req.query.filters) : null;
+  
+  try {
+    let whereConditions = [];
+    let parameters = [];
+
+    // Add search query conditions if present
+    if (searchQuery && searchQuery.trim() !== '') {
+      const searchTerms = searchQuery.toLowerCase().trim().split(/\s+/).filter(term => term.length > 0);
+      
+      const searchConditions = searchTerms.map(() => `
+        (LOWER(rs.title) LIKE ? 
+        OR LOWER(rs.keywords) LIKE ? 
+        OR LOWER(rs.abstract) LIKE ?
+        OR LOWER(rs.institution) LIKE ? 
+        OR LOWER(rs.category) LIKE ?
+        OR LOWER(u.first_name) LIKE ? 
+        OR LOWER(u.last_name) LIKE ?
+        OR LOWER(CONCAT(u.first_name, ' ', u.last_name)) LIKE ?)`
+      ).join(' OR ');
+
+      if (searchConditions) {
+        whereConditions.push(`(${searchConditions})`);
+        parameters.push(...searchTerms.flatMap(term => Array(8).fill(`%${term}%`)));
+      }
+    }
+
+    // Add filter conditions if present
+    if (filters) {
+      if (filters.yearRange) {
+        whereConditions.push('year_of_completion BETWEEN ? AND ?');
+        parameters.push(filters.yearRange[0], filters.yearRange[1]);
+      }
+
+      if (filters.selectedDegrees?.length) {
+        whereConditions.push(`degree_program IN (${filters.selectedDegrees.map(() => '?').join(', ')})`);
+        parameters.push(...filters.selectedDegrees);
+      }
+
+      if (filters.selectedCategories?.length) {
+        whereConditions.push(`category IN (${filters.selectedCategories.map(() => '?').join(', ')})`);
+        parameters.push(...filters.selectedCategories);
+      }
+
+      if (filters.selectedInstitutions?.length) {
+        whereConditions.push(`institution IN (${filters.selectedInstitutions.map(() => '?').join(', ')})`);
+        parameters.push(...filters.selectedInstitutions);
+      }
+    }
+
+    const whereClause = whereConditions.length ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    const searchSql = `
+  SELECT DISTINCT
+    rs.*,
+    CASE 
+      WHEN rs.author LIKE 'Dr.%' OR rs.author LIKE 'Mr.%' OR rs.author LIKE 'Ms.%' OR rs.author LIKE 'Mrs.%'
+      THEN rs.author
+      ELSE COALESCE(rs.author, 'Unknown Author') 
+    END as author_name,
+    'Researcher' as author_type,
+    (SELECT COUNT(*) FROM study_references WHERE research_id = rs.research_id) as reference_count
+  FROM research_studies rs
+  ${whereClause}
+  ORDER BY rs.date_added DESC
+  LIMIT 50
+`;
+
+    const studies = await query(searchSql, parameters);
+
+    return res.status(200).json({ 
+      studies,
+      total: studies.length
+    });
+
+  } catch (error) {
+    console.error('Search error:', error);
+    return res.status(500).json({ 
+      error: 'Error searching studies',
+      details: error.message 
+    });
+  }
+}
 
 
 

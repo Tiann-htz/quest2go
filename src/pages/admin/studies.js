@@ -38,6 +38,8 @@ export default function Studies() {
   useEffect(() => {
     if (currentStudy) {
       fetchReferences(currentStudy.research_id);
+    } else {
+      setReferences([]); // Add this line to ensure references are cleared when no study is selected
     }
   }, [currentStudy]);
 
@@ -243,6 +245,7 @@ export default function Studies() {
                       author: '',
                       status: 'Non-Available'  
                     });
+                    setReferences([]);
                     setIsModalOpen(true);
                   }}
                   className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-indigo-700"

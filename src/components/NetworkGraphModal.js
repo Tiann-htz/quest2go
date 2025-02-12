@@ -99,7 +99,7 @@ const NetworkGraphModal = ({ isOpen, onClose, articles }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
-
+  
   useEffect(() => {
     function handleClickOutside(event) {
       if (modalRef.current && !modalRef.current.contains(event.target)) {

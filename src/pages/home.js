@@ -123,6 +123,8 @@ export default function Home() {
   };
 
   const handleArticleClick = (article) => {
+    console.log('Selected article:', article); // Add this to debug
+    
     if (!user) {
       setSelectedArticle(article);
       setShowLoginModal(true);
@@ -312,8 +314,11 @@ export default function Home() {
               <div className="grid grid-cols-1 gap-4">
               {searchResults.map((article) => (
   <div
-    key={article.research_id}
-    onClick={() => handleArticleClick(article)}
+    key={`search-result-${article.research_id}`} // More specific key
+    onClick={() => {
+      console.log('Clicked article:', article); // Add this to debug
+      handleArticleClick(article);
+    }}
     className="p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
   >
     <h3 className="text-lg font-semibold text-gray-900">{article.title}</h3>
@@ -355,6 +360,7 @@ export default function Home() {
 <NetworkGraphModal
   isOpen={showNetworkGraphModal}
   onClose={() => setShowNetworkGraphModal(false)}
+  article={selectedArticle}
   articles={searchResults.map(article => ({
     id: article.research_id,
     title: article.title,

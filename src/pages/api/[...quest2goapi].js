@@ -80,6 +80,175 @@ async function getStudyReferences(req, res) {
   }
 }
 
+async function getFilterOptions(req, res) {
+  try {
+    const [degrees, categories, institutions, years] = await Promise.all([
+      query('SELECT DISTINCT degree_program FROM research_studies WHERE degree_program IS NOT NULL ORDER BY degree_program'),
+      query('SELECT DISTINCT category FROM research_studies WHERE category IS NOT NULL ORDER BY category'),
+      query('SELECT DISTINCT institution FROM research_studies WHERE institution IS NOT NULL ORDER BY institution'),
+      query('SELECT MIN(year_of_completion) as min_year, MAX(year_of_completion) as max_year FROM research_studies')
+    ]);
+
+    res.status(200).json({
+      degrees: degrees.map(d => d.degree_program),
+      categories: categories.map(c => c.category),
+      institutions: institutions.map(i => i.institution),
+      years: {
+        min: years[0].min_year,
+        max: years[0].max_year
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching filter options:', error);
+    res.status(500).json({ error: 'Error fetching filter options' });
+  }
+}
+
+//Search section
+async function searchStudies(req, res) {
+  try {
+    const { query: searchQuery } = req.query;
+    const filters = req.query.filters ? JSON.parse(req.query.filters) : null;
+    
+    let whereConditions = [];
+    let parameters = [];
+
+    // Add search query conditions if present
+    if (searchQuery && searchQuery.trim() !== '') {
+      const searchTerms = searchQuery.toLowerCase().trim().split(/\s+/).filter(term => term.length > 0);
+      
+      if (searchTerms.length > 0) {
+        // Create a CASE statement for ranking matches
+        const rankingCase = `
+          CASE 
+            WHEN LOWER(rs.title) = ? THEN 100  
+            WHEN LOWER(rs.title) LIKE ? THEN 90  
+            WHEN LOWER(rs.title) LIKE ? THEN 80  
+            WHEN LOWER(rs.keywords) LIKE ? THEN 60 
+            WHEN LOWER(rs.abstract) LIKE ? THEN 50 
+            WHEN LOWER(rs.author) LIKE ? THEN 40  
+            WHEN LOWER(rs.institution) LIKE ? THEN 30  
+            WHEN LOWER(rs.category) LIKE ? THEN 20  
+            ELSE 0
+          END as match_score`;
+
+        const searchCondition = searchTerms.map(() => 
+          'LOWER(rs.title) LIKE ? OR ' +
+          'LOWER(rs.keywords) LIKE ? OR ' +
+          'LOWER(rs.abstract) LIKE ? OR ' +
+          'LOWER(rs.institution) LIKE ? OR ' +
+          'LOWER(rs.category) LIKE ? OR ' +
+          'LOWER(rs.author) LIKE ?'
+        ).join(' OR ');
+
+        whereConditions.push(`(${searchCondition})`);
+        
+        // Add parameters for both ranking and search conditions
+        searchTerms.forEach(term => {
+          // Parameters for ranking
+          parameters.push(
+            term.toLowerCase(), // Exact match
+            `${term.toLowerCase()}%`, // Starts with
+            `%${term.toLowerCase()}%`, // Contains
+            `%${term.toLowerCase()}%`, // Keywords
+            `%${term.toLowerCase()}%`, // Abstract
+            `%${term.toLowerCase()}%`, // Author
+            `%${term.toLowerCase()}%`, // Institution
+            `%${term.toLowerCase()}%`  // Category
+          );
+          // Parameters for WHERE conditions
+          const termPattern = `%${term}%`;
+          parameters.push(...Array(6).fill(termPattern));
+        });
+      }
+    }
+
+    // Add filter conditions if present
+    if (filters) {
+      if (filters.yearRange && Array.isArray(filters.yearRange)) {
+        whereConditions.push('rs.year_of_completion BETWEEN ? AND ?');
+        parameters.push(filters.yearRange[0], filters.yearRange[1]);
+      }
+
+      if (filters.selectedDegrees?.length) {
+        whereConditions.push(`rs.degree_program IN (${filters.selectedDegrees.map(() => '?').join(',')})`);
+        parameters.push(...filters.selectedDegrees);
+      }
+
+      if (filters.selectedCategories?.length) {
+        whereConditions.push(`rs.category IN (${filters.selectedCategories.map(() => '?').join(',')})`);
+        parameters.push(...filters.selectedCategories);
+      }
+
+      if (filters.selectedInstitutions?.length) {
+        whereConditions.push(`rs.institution IN (${filters.selectedInstitutions.map(() => '?').join(',')})`);
+        parameters.push(...filters.selectedInstitutions);
+      }
+    }
+
+    const whereClause = whereConditions.length > 0 
+      ? `WHERE ${whereConditions.join(' AND ')}` 
+      : '';
+
+    const searchSql = `
+      SELECT DISTINCT
+        rs.*,
+        CASE 
+          WHEN rs.author LIKE 'Dr.%' OR rs.author LIKE 'Mr.%' OR rs.author LIKE 'Ms.%' OR rs.author LIKE 'Mrs.%'
+          THEN rs.author
+          ELSE COALESCE(rs.author, 'Unknown Author')
+        END as author_name,
+        (SELECT COUNT(*) FROM study_references WHERE research_id = rs.research_id) as reference_count,
+        ${searchQuery ? `
+          CASE 
+            WHEN LOWER(rs.title) = ? THEN 100
+            WHEN LOWER(rs.title) LIKE ? THEN 90
+            WHEN LOWER(rs.title) LIKE ? THEN 80
+            WHEN LOWER(rs.keywords) LIKE ? THEN 60
+            WHEN LOWER(rs.abstract) LIKE ? THEN 50
+            WHEN LOWER(rs.author) LIKE ? THEN 40
+            WHEN LOWER(rs.institution) LIKE ? THEN 30
+            WHEN LOWER(rs.category) LIKE ? THEN 20
+            ELSE 0
+          END` : '0'} as match_score
+      FROM research_studies rs
+      ${whereClause}
+      ORDER BY match_score DESC, rs.date_added DESC
+      LIMIT 50
+    `;
+
+    // Add ranking parameters if there's a search query
+    if (searchQuery && searchQuery.trim() !== '') {
+      const term = searchQuery.toLowerCase().trim();
+      parameters.push(
+        term,
+        `${term}%`,
+        `%${term}%`,
+        `%${term}%`,
+        `%${term}%`,
+        `%${term}%`,
+        `%${term}%`,
+        `%${term}%`
+      );
+    }
+
+    const studies = await query(searchSql, parameters);
+
+    return res.status(200).json({ 
+      studies,
+      total: studies.length
+    });
+
+  } catch (error) {
+    console.error('Search error:', error);
+    return res.status(500).json({ 
+      error: 'Error searching studies',
+      details: error.message 
+    });
+  }
+}
+
+
 async function getReferences(req, res) {
   try {
     const studyId = req.url.split('/').pop();
@@ -265,116 +434,7 @@ async function deleteStudy(req, res) {
 
 
 
-async function getFilterOptions(req, res) {
-  try {
-    const [degrees, categories, institutions, years] = await Promise.all([
-      query('SELECT DISTINCT degree_program FROM research_studies WHERE degree_program IS NOT NULL ORDER BY degree_program'),
-      query('SELECT DISTINCT category FROM research_studies WHERE category IS NOT NULL ORDER BY category'),
-      query('SELECT DISTINCT institution FROM research_studies WHERE institution IS NOT NULL ORDER BY institution'),
-      query('SELECT MIN(year_of_completion) as min_year, MAX(year_of_completion) as max_year FROM research_studies')
-    ]);
 
-    res.status(200).json({
-      degrees: degrees.map(d => d.degree_program),
-      categories: categories.map(c => c.category),
-      institutions: institutions.map(i => i.institution),
-      years: {
-        min: years[0].min_year,
-        max: years[0].max_year
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching filter options:', error);
-    res.status(500).json({ error: 'Error fetching filter options' });
-  }
-}
-
-//Search section
-async function searchStudies(req, res) {
-  const { query: searchQuery } = req.query;
-  const filters = req.query.filters ? JSON.parse(req.query.filters) : null;
-  
-  try {
-    let whereConditions = [];
-    let parameters = [];
-
-    // Add search query conditions if present
-    if (searchQuery && searchQuery.trim() !== '') {
-      const searchTerms = searchQuery.toLowerCase().trim().split(/\s+/).filter(term => term.length > 0);
-      
-      const searchConditions = searchTerms.map(() => `
-        (LOWER(rs.title) LIKE ? 
-        OR LOWER(rs.keywords) LIKE ? 
-        OR LOWER(rs.abstract) LIKE ?
-        OR LOWER(rs.institution) LIKE ? 
-        OR LOWER(rs.category) LIKE ?
-        OR LOWER(u.first_name) LIKE ? 
-        OR LOWER(u.last_name) LIKE ?
-        OR LOWER(CONCAT(u.first_name, ' ', u.last_name)) LIKE ?)`
-      ).join(' OR ');
-
-      if (searchConditions) {
-        whereConditions.push(`(${searchConditions})`);
-        parameters.push(...searchTerms.flatMap(term => Array(8).fill(`%${term}%`)));
-      }
-    }
-
-    // Add filter conditions if present
-    if (filters) {
-      if (filters.yearRange) {
-        whereConditions.push('year_of_completion BETWEEN ? AND ?');
-        parameters.push(filters.yearRange[0], filters.yearRange[1]);
-      }
-
-      if (filters.selectedDegrees?.length) {
-        whereConditions.push(`degree_program IN (${filters.selectedDegrees.map(() => '?').join(', ')})`);
-        parameters.push(...filters.selectedDegrees);
-      }
-
-      if (filters.selectedCategories?.length) {
-        whereConditions.push(`category IN (${filters.selectedCategories.map(() => '?').join(', ')})`);
-        parameters.push(...filters.selectedCategories);
-      }
-
-      if (filters.selectedInstitutions?.length) {
-        whereConditions.push(`institution IN (${filters.selectedInstitutions.map(() => '?').join(', ')})`);
-        parameters.push(...filters.selectedInstitutions);
-      }
-    }
-
-    const whereClause = whereConditions.length ? `WHERE ${whereConditions.join(' AND ')}` : '';
-
-    const searchSql = `
-  SELECT DISTINCT
-    rs.*,
-    CASE 
-      WHEN rs.author LIKE 'Dr.%' OR rs.author LIKE 'Mr.%' OR rs.author LIKE 'Ms.%' OR rs.author LIKE 'Mrs.%'
-      THEN rs.author
-      ELSE COALESCE(rs.author, 'Unknown Author') 
-    END as author_name,
-    'Researcher' as author_type,
-    (SELECT COUNT(*) FROM study_references WHERE research_id = rs.research_id) as reference_count
-  FROM research_studies rs
-  ${whereClause}
-  ORDER BY rs.date_added DESC
-  LIMIT 50
-`;
-
-    const studies = await query(searchSql, parameters);
-
-    return res.status(200).json({ 
-      studies,
-      total: studies.length
-    });
-
-  } catch (error) {
-    console.error('Search error:', error);
-    return res.status(500).json({ 
-      error: 'Error searching studies',
-      details: error.message 
-    });
-  }
-}
 
 
 

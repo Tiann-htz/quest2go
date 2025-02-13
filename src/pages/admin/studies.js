@@ -3,7 +3,20 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 import Head from 'next/head';
 import AdminSidebar from './AdminSidebar';
-import { Plus, Edit2, Trash2, X, Menu, Search, Link as LinkIcon } from 'lucide-react';
+import { 
+  Plus, 
+  Edit2, 
+  Trash2, 
+  X, 
+  Menu, 
+  Search, 
+  Link as LinkIcon,
+  Bell,
+  User,
+  ChevronDown,
+  Settings,
+  LogOut 
+} from 'lucide-react';
 
 export default function Studies() {
   const router = useRouter();
@@ -14,6 +27,8 @@ export default function Studies() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentStudy, setCurrentStudy] = useState(null);
   const [references, setReferences] = useState([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+const [admin, setAdmin] = useState(null);
   const [newReference, setNewReference] = useState({
     reference_link: '',
     reference_details: ''
@@ -155,6 +170,15 @@ export default function Studies() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await axios.post('/api/logout');
+      router.push('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -196,34 +220,83 @@ export default function Studies() {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Top Navigation */}
           <div className="bg-white shadow">
-            <div className="px-4 sm:px-6 lg:px-8">
-              <div className="flex h-16 items-center justify-between">
-                <button
-                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className="lg:hidden text-gray-500 hover:text-gray-700"
-                >
-                  <Menu className="w-6 h-6" />
-                </button>
-                <div className="flex-1 px-4 flex justify-between">
-                  <div className="flex-1 flex">
-                    <div className="w-full flex md:ml-0">
-                      <div className="relative w-full text-gray-400 focus-within:text-gray-600">
-                        <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
-                          <Search className="h-5 w-5" />
-                        </div>
-                        <input
-                          type="text"
-                          className="block w-full h-full pl-8 pr-3 py-2 border-transparent text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-0 focus:border-transparent sm:text-sm"
-                          placeholder="Search studies..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <div className="px-4 sm:px-6 lg:px-8">
+  <div className="flex h-16 items-center justify-between">
+    <button
+      onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+      className="lg:hidden text-gray-500 hover:text-gray-700"
+    >
+      <Menu className="w-6 h-6" />
+    </button>
+    <div className="flex-1 px-4 flex justify-between">
+      <div className="flex-1 flex">
+        <div className="w-full flex md:ml-0">
+          <div className="relative w-full text-gray-400 focus-within:text-gray-600">
+            <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
+              <Search className="h-5 w-5" />
             </div>
+            <input
+              type="text"
+              className="block w-full h-full pl-8 pr-3 py-2 border-transparent text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-0 focus:border-transparent sm:text-sm"
+              placeholder="Search studies..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+      
+      {/* Add this new section for notifications and user profile */}
+      <div className="flex items-center space-x-6">
+        <button className="text-gray-500 hover:text-gray-700 relative">
+          <Bell className="w-6 h-6" />
+          <span className="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
+        </button>
+
+        {/* Admin Profile Dropdown */}
+        <div className="relative">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsDropdownOpen(!isDropdownOpen);
+            }}
+            className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-100"
+          >
+            <div className="flex items-center space-x-3">
+              <div className="bg-indigo-100 p-2 rounded-full">
+                <User className="w-5 h-5 text-indigo-600" />
+              </div>
+              <span className="hidden sm:inline text-gray-700 font-medium">{admin?.username}</span>
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            </div>
+          </button>
+
+          {/* Dropdown Menu */}
+          {isDropdownOpen && (
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-10 border border-gray-200"
+            >
+              <button 
+                className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 w-full"
+              >
+                <Settings className="w-4 h-4 mr-3" />
+                Settings
+              </button>
+              <button 
+                onClick={handleLogout}
+                className="flex items-center px-4 py-2 text-red-600 hover:bg-gray-100 w-full"
+              >
+                <LogOut className="w-4 h-4 mr-3" />
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
           </div>
 
            {/* Main Content Area */}

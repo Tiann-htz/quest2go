@@ -1,6 +1,6 @@
 import { parse } from 'url';
 import bcrypt from 'bcrypt';
-import { sign } from 'jsonwebtoken';
+import { sign, verify } from 'jsonwebtoken'; // Make sure verify is imported
 import { query } from '../../utils/db';
 import { authMiddleware } from '../../utils/authMiddleware';
 import { serialize } from 'cookie';
@@ -20,7 +20,7 @@ const handler = async (req, res) => {
         } else if (pathname === '/api/admin/login') {
           await handleAdminLogin(req, res);
         } else if (pathname === '/api/logout') {
-          await handleLogout(req, res);
+          await handleLogout(req, res); // Remove authMiddleware here
         } else if (pathname === '/api/admin/studies') {
           return authMiddleware(createStudy)(req, res); 
         } else if (pathname.startsWith('/api/admin/references/') && method === 'POST') {
@@ -66,6 +66,19 @@ const handler = async (req, res) => {
   }
 };
 
+
+
+
+
+
+
+
+
+
+
+
+
+//////Filtering and Searching
 async function getStudyReferences(req, res) {
   try {
     const { studyId } = req.query;
@@ -249,6 +262,23 @@ async function searchStudies(req, res) {
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/////Admin Study References section - Adding, Updating, Deleting
 async function getReferences(req, res) {
   try {
     const studyId = req.url.split('/').pop();
@@ -309,7 +339,7 @@ async function deleteReference(req, res) {
 
 
 
-//Research Studies Admin section - Adding, Updating, Deleting
+/////Admin Research Studies section - Adding, Updating, Deleting
 async function getStudies(req, res) {
   try {
     const studies = await query(
@@ -438,7 +468,8 @@ async function deleteStudy(req, res) {
 
 
 
-//Admin section
+
+//Admin Login section
 async function handleAdminLogin(req, res) {
   try {
     const { email, password } = req.body;
@@ -523,6 +554,15 @@ async function getUserDataAdmin(req, res) {
 
 
 
+
+
+
+
+
+
+
+
+
 //Users Login, Logout, Signup section
 async function handleLogin(req, res) {
   try {
@@ -548,18 +588,24 @@ async function handleLogin(req, res) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    // Add last activity tracking
+    await query(
+      'UPDATE user SET last_activity = CURRENT_TIMESTAMP WHERE user_id = ?',
+      [user.user_id]
+    );
+
     let additionalInfo = {};
 
-    if (user.user_type === 'Educator') {
-      const [educatorInfo] = await query(
-        'SELECT institution_name, year_level, course_type FROM educators WHERE user_id = ?',
+    if (user.user_type === 'Student') {
+      const [studentInfo] = await query(
+        'SELECT institution_name, year_level, course_type FROM students WHERE user_id = ?', 
         [user.user_id]
       );
-      if (educatorInfo) {
+      if (studentInfo) {
         additionalInfo = {
-          institution: educatorInfo.institution_name,
-          yearLevel: educatorInfo.year_level,
-          course: educatorInfo.course_type
+          institution: studentInfo.institution_name,
+          yearLevel: studentInfo.year_level,
+          course: studentInfo.course_type
         };
       }
     } else if (user.user_type === 'Researcher') {
@@ -570,6 +616,16 @@ async function handleLogin(req, res) {
       if (researcherInfo) {
         additionalInfo = {
           organization: researcherInfo.organization_name
+        };
+      }
+    } else if (user.user_type === 'Teacher') {
+      const [teacherInfo] = await query(
+        'SELECT institution_name FROM teachers WHERE user_id = ?',
+        [user.user_id]
+      );
+      if (teacherInfo) {
+        additionalInfo = {
+          institution: teacherInfo.institution_name
         };
       }
     }
@@ -613,15 +669,50 @@ async function handleLogin(req, res) {
 }
 
 async function handleLogout(req, res) {
-  res.setHeader('Set-Cookie', serialize('token', '', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: -1,
-    path: '/'
-  }));
+  try {
+    // Get the token from cookies
+    const token = req.cookies.token;
+    
+    if (!token) {
+      // If no token exists, just clear the cookie and return success
+      res.setHeader('Set-Cookie', serialize('token', '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: -1,
+        path: '/'
+      }));
+      return res.status(200).json({ message: 'Logged out successfully' });
+    }
 
-  res.status(200).json({ message: 'Logged out successfully' });
+    try {
+      // Verify and decode the token to get userId
+      const decoded = verify(token, process.env.JWT_SECRET);
+      
+      // Update last activity when logging out
+      await query(
+        'UPDATE user SET last_activity = CURRENT_TIMESTAMP WHERE user_id = ?',
+        [decoded.userId]
+      );
+    } catch (tokenError) {
+      console.error('Token verification error:', tokenError);
+      // If token verification fails, just proceed with logout
+    }
+
+    // Clear the cookie regardless of token verification
+    res.setHeader('Set-Cookie', serialize('token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: -1,
+      path: '/'
+    }));
+
+    res.status(200).json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Error during logout' });
+  }
 }
 
 async function getUserData(req, res) {
@@ -675,15 +766,20 @@ async function handleSignup(req, res) {
 
     const userId = accountResult.insertId;
 
-    if (userType === 'Educator') {
+    if (userType === 'Student') { 
       await query(
-        'INSERT INTO educators (user_id, institution_name, year_level, course_type) VALUES (?, ?, ?, ?)',
+        'INSERT INTO students (user_id, institution_name, year_level, course_type) VALUES (?, ?, ?, ?)',
         [userId, institution, yearLevel, course]
       );
     } else if (userType === 'Researcher') {
       await query(
         'INSERT INTO researchers (user_id, organization_name) VALUES (?, ?)',
         [userId, organization]
+      );
+    } else if (userType === 'Teacher') {
+      await query(
+        'INSERT INTO teachers (user_id, institution_name) VALUES (?, ?)',
+        [userId, institution]
       );
     }
 

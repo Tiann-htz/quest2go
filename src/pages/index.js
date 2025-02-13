@@ -305,7 +305,7 @@ useEffect(() => {
           <div className="md:w-1/2">
             <h2 className="text-3xl font-extrabold text-gray-900">About Quest2Go</h2>
             <p className="mt-4 text-gray-600">
-              Quest2Go is your gateway to discovering unpublished research treasures within Davao City's academic landscape. We bridge the gap between researchers, educators, and valuable academic work by creating an interconnected network of institutional research repositories.
+              Quest2Go is your gateway to discovering unpublished research treasures within Davao City's academic landscape. We bridge the gap between researchers, students, teachers and valuable academic work by creating an interconnected network of institutional research repositories.
             </p>
             <button className="mt-6 bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 transition-colors">
               Learn More

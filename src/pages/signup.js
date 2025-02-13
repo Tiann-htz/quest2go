@@ -126,17 +126,28 @@ export default function SignUp() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">You are a:</label>
             <div className="flex space-x-4">
+            <label className="inline-flex items-center">
+  <input
+    type="radio"
+    name="userType"
+    value="Student"
+    checked={formData.userType === 'Student'}
+    onChange={handleChange}
+    className="form-radio h-4 w-4 text-indigo-600"
+  />
+  <span className="ml-2 text-gray-700">Student</span>
+</label>
               <label className="inline-flex items-center">
-                <input
-                  type="radio"
-                  name="userType"
-                  value="Educator"
-                  checked={formData.userType === 'Educator'}
-                  onChange={handleChange}
-                  className="form-radio h-4 w-4 text-indigo-600"
-                />
-                <span className="ml-2 text-gray-700">Student</span>
-              </label>
+      <input
+        type="radio"
+        name="userType"
+        value="Teacher"
+        checked={formData.userType === 'Teacher'}
+        onChange={handleChange}
+        className="form-radio h-4 w-4 text-indigo-600"
+      />
+      <span className="ml-2 text-gray-700">Teacher</span>
+    </label>
               <label className="inline-flex items-center">
                 <input
                   type="radio"
@@ -152,9 +163,27 @@ export default function SignUp() {
           </div>
 
           {/* Conditional Fields */}
+          {formData.userType === 'Teacher' && (
+  <div className="space-y-4">
+    <div className="sm:col-span-2">
+      <label htmlFor="institution" className="block text-sm font-medium text-gray-700">
+        Name of Institution
+      </label>
+      <input
+        type="text"
+        id="institution"
+        name="institution"
+        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+        required
+        value={formData.institution}
+        onChange={handleChange}
+      />
+    </div>
+  </div>
+)}
           {formData.userType && (
             <div className="space-y-4">
-              {formData.userType === 'Educator' && (
+            {formData.userType === 'Student' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <label htmlFor="institution" className="block text-sm font-medium text-gray-700">
@@ -170,6 +199,7 @@ export default function SignUp() {
                       onChange={handleChange}
                     />
                   </div>
+                  
                   <div>
                     <label htmlFor="yearLevel" className="block text-sm font-medium text-gray-700">
                       Year Level

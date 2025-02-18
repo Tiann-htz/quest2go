@@ -1,9 +1,10 @@
 import React, { useRef, useEffect, useState } from 'react';
 import Graph from "react-graph-vis";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronRightIcon, ChevronLeftIcon, ChevronDownIcon, ChevronUpIcon, ExternalLinkIcon } from "lucide-react";
+import { ChevronRightIcon, ChevronLeftIcon, ChevronDownIcon, ChevronUpIcon, ExternalLinkIcon, MessageCircle, X as XIcon } from "lucide-react";
 import axios from 'axios';
 import "vis-network/styles/vis-network.css";
+import ChatWindow from './ChatWindow';
 
 const PulseLoader = () => (
   <div className="flex items-center justify-center w-full h-full min-h-[600px]">
@@ -94,15 +95,20 @@ const ReferencesList = ({ studyId, referenceCount }) => {
   );
 };
 
-const NetworkGraphModal = ({ isOpen, onClose, articles }) => {
+const NetworkGraphModal = ({ isOpen, onClose, articles, activeChatWindows, onOpenChat, onCloseChat }) => {
   const modalRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
+  const [showChatWindow, setShowChatWindow] = useState(false);
+  const handleOpenChat = (article) => {
+    onOpenChat(article);
+  };
   
   useEffect(() => {
     function handleClickOutside(event) {
-      if (modalRef.current && !modalRef.current.contains(event.target)) {
+      if (modalRef.current && !modalRef.current.contains(event.target) && 
+          event.target.classList.contains('modal-backdrop')) {
         onClose();
       }
     }
@@ -110,7 +116,6 @@ const NetworkGraphModal = ({ isOpen, onClose, articles }) => {
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       setIsLoading(true);
-      // Only show loading state if there are articles to display
       const timer = setTimeout(() => setIsLoading(false), articles.length > 0 ? 1500 : 0);
       return () => {
         clearTimeout(timer);
@@ -127,15 +132,23 @@ const NetworkGraphModal = ({ isOpen, onClose, articles }) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 modal-backdrop"
       >
         <motion.div
           ref={modalRef}
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="bg-white rounded-lg shadow-lg p-6 max-w-md"
+          className="bg-white rounded-lg shadow-lg p-6 max-w-md relative"
         >
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 rounded-full p-1"
+          >
+            <XIcon className="h-5 w-5" />
+          </button>
+          
           <h2 className="text-xl font-bold mb-4">No Articles Available</h2>
           <p className="text-gray-600">There are no articles to display in the network graph.</p>
           <button
@@ -312,6 +325,17 @@ const NetworkGraphModal = ({ isOpen, onClose, articles }) => {
             studyId={selectedArticle.id} 
             referenceCount={selectedArticle.referenceCount}
           />
+          
+          {/* Add the Chat button after the ReferencesList */}
+          <div className="mt-4 pt-4 border-t border-gray-200">
+          <button
+              onClick={() => handleOpenChat(selectedArticle)}
+              className="flex items-center space-x-2 text-indigo-600 hover:text-indigo-800 font-medium text-sm"
+            >
+              <MessageCircle className="w-5 h-5" />
+              <span>Request access to this research</span>
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex items-center justify-center h-full text-gray-500">
@@ -320,7 +344,7 @@ const NetworkGraphModal = ({ isOpen, onClose, articles }) => {
       )}
     </div>
   );
-
+  
   return (
     <AnimatePresence>
       {isOpen && (
@@ -339,6 +363,14 @@ const NetworkGraphModal = ({ isOpen, onClose, articles }) => {
             transition={{ duration: 0.2 }}
             className="bg-white rounded-lg shadow-lg p-6 w-11/12 max-w-7xl h-[80vh] flex flex-col md:flex-row relative"
           >
+            {/* Close button */}
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 rounded-full p-1 z-20"
+            >
+              <XIcon className="h-5 w-5" />
+            </button>
+
             {/* Mobile Navigation Buttons */}
             <div className="md:hidden absolute right-2 top-1/2 transform -translate-y-1/2 z-10">
               {showDetailPanel ? (
@@ -391,6 +423,15 @@ const NetworkGraphModal = ({ isOpen, onClose, articles }) => {
             </div>
           </motion.div>
         </motion.div>
+      )}
+      
+      {showChatWindow && selectedArticle && (
+        <ChatWindow 
+          key={`chat-${selectedArticle.id}`}
+          article={selectedArticle} 
+          onClose={() => setShowChatWindow(false)} 
+          isOpen={showChatWindow}
+        />
       )}
     </AnimatePresence>
   );

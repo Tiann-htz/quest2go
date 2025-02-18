@@ -1,6 +1,6 @@
 import { parse } from 'url';
 import bcrypt from 'bcrypt';
-import { sign, verify } from 'jsonwebtoken'; // Make sure verify is imported
+import { sign, verify } from 'jsonwebtoken';
 import { query } from '../../utils/db';
 import { authMiddleware } from '../../utils/authMiddleware';
 import { serialize } from 'cookie';
@@ -20,12 +20,16 @@ const handler = async (req, res) => {
         } else if (pathname === '/api/admin/login') {
           await handleAdminLogin(req, res);
         } else if (pathname === '/api/logout') {
-          await handleLogout(req, res); // Remove authMiddleware here
+          await handleLogout(req, res); 
         } else if (pathname === '/api/admin/studies') {
           return authMiddleware(createStudy)(req, res); 
         } else if (pathname.startsWith('/api/admin/references/') && method === 'POST') {
           return updateReferences(req, res);
-        }
+        } else if (pathname === '/api/chat/send') {
+          return authMiddleware(handleChatMessage)(req, res);
+      } else if (pathname === '/api/chat/edit') {
+        return authMiddleware(editChatMessage)(req, res);
+      }
         break;
       case 'GET':
         if (pathname === '/api/user') {
@@ -42,6 +46,10 @@ const handler = async (req, res) => {
           return getReferences(req, res);
         } else if (pathname === '/api/study/references') {
           return getStudyReferences(req, res);
+        } else if (pathname.startsWith('/api/chat/messages/')) {
+          return authMiddleware(getChatMessages)(req, res);
+        } else if (pathname === '/api/chat/requests') {
+          return authMiddleware(getChatRequests)(req, res);
         }
         break;
       case 'PUT':
@@ -54,6 +62,8 @@ const handler = async (req, res) => {
           return authMiddleware(deleteStudy)(req, res);
         } else if (pathname.startsWith('/api/admin/references/') && method === 'DELETE') {
           return deleteReference(req, res);
+        } else if (pathname.startsWith('/api/chat/message/')) {
+          return authMiddleware(deleteChatMessage)(req, res);
         }
         break;
       default:
@@ -66,10 +76,254 @@ const handler = async (req, res) => {
   }
 };
 
+async function getChatRequests(req, res) {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
+    const decoded = verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
 
+    // Get chat requests for regular users
+    // Now counts responses from admins (where is_read = 1)
+    const chatRequests = await query(
+      `SELECT DISTINCT 
+        r.research_id, 
+        r.title,
+        (SELECT COUNT(*) 
+         FROM chats c2 
+         WHERE c2.research_id = r.research_id 
+         AND c2.is_read = 1
+         AND c2.sender_id IN (SELECT admin_id FROM admin_accounts)
+         AND EXISTS (
+           SELECT 1 FROM chats c3 
+           WHERE c3.research_id = r.research_id 
+           AND c3.sender_id = ?
+         )
+        ) as admin_response_count
+       FROM research_studies r
+       JOIN chats c ON r.research_id = c.research_id
+       WHERE c.sender_id = ?
+       ORDER BY (
+         SELECT MAX(timestamp) 
+         FROM chats 
+         WHERE research_id = r.research_id
+       ) DESC`,
+      [userId, userId]
+    );
 
+    // Calculate total admin responses
+    const [responseCount] = await query(
+      `SELECT COUNT(*) as count
+       FROM chats c
+       WHERE c.sender_id IN (SELECT admin_id FROM admin_accounts)
+       AND c.is_read = 1
+       AND EXISTS (
+         SELECT 1 
+         FROM chats c2 
+         WHERE c2.research_id = c.research_id 
+         AND c2.sender_id = ?
+       )`,
+      [userId]
+    );
 
+    res.status(200).json({ 
+      chatRequests,
+      adminResponses: responseCount.count
+    });
+  } catch (error) {
+    console.error('Error fetching chat requests:', error);
+    res.status(500).json({ error: 'Failed to fetch chat requests' });
+  }
+}
+
+async function getChatMessages(req, res) {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const decoded = verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+    const isAdmin = decoded.isAdmin || false;
+    
+    // Extract research_id from URL
+    const research_id = req.url.split('/').pop();
+    
+    if (!research_id || research_id === 'undefined') {
+      return res.status(400).json({ error: 'Research ID is required' });
+    }
+
+    // Different queries for admin and regular users
+    let messages;
+    if (isAdmin) {
+      // Admin can see all messages for the research study
+      messages = await query(
+        `SELECT c.*, 
+          CASE WHEN c.sender_id = ? THEN true ELSE false END as isCurrentUser,
+          u.first_name, u.last_name
+         FROM chats c
+         JOIN user u ON c.sender_id = u.user_id
+         WHERE c.research_id = ?
+         ORDER BY c.timestamp ASC`,
+        [userId, research_id]
+      );
+    } else {
+      // Regular users can only see their own messages
+      messages = await query(
+        `SELECT c.*, 
+          CASE WHEN c.sender_id = ? THEN true ELSE false END as isCurrentUser,
+          u.first_name, u.last_name
+         FROM chats c
+         JOIN user u ON c.sender_id = u.user_id
+         WHERE c.research_id = ? 
+         AND (c.sender_id = ? OR u.user_type = 'admin')
+         ORDER BY c.timestamp ASC`,
+        [userId, research_id, userId]
+      );
+    }
+
+    // Format messages for frontend
+    const formattedMessages = messages.map(msg => ({
+      id: msg.chat_id,
+      message: msg.message,
+      timestamp: msg.timestamp,
+      isCurrentUser: msg.isCurrentUser,
+      senderName: `${msg.first_name} ${msg.last_name}`
+    }));
+
+    res.status(200).json({ messages: formattedMessages });
+  } catch (error) {
+    console.error('Error fetching chat messages:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+}
+
+async function handleChatMessage(req, res) {
+  try {
+    console.log('Received chat message request:', req.body);
+    const token = req.cookies.token;
+    
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const decoded = verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+    console.log('User ID from token:', userId);
+
+    const { research_id, message } = req.body;
+    console.log('Looking up research_id:', research_id);
+
+    const [research] = await query(
+      'SELECT * FROM research_studies WHERE research_id = ?',
+      [research_id]
+    );
+    console.log('Found research:', research);
+
+    if (!research) {
+      return res.status(404).json({ error: 'Research study not found' });
+    }
+
+    // Check if an access request already exists
+    const [existingRequest] = await query(
+      'SELECT * FROM research_access_requests WHERE user_id = ? AND research_id = ?',
+      [userId, research_id]
+    );
+
+    // Only create a new access request if one doesn't exist
+    if (!existingRequest) {
+      await query(
+        'INSERT INTO research_access_requests (user_id, research_id) VALUES (?, ?)',
+        [userId, research_id]
+      );
+    }
+
+    // Insert the chat message with corrected query
+    await query(
+      'INSERT INTO chats (sender_id, research_id, message) VALUES (?, ?, ?)',
+      [userId, research_id, message]
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Chat message and access request sent successfully'
+    });
+  } catch (error) {
+    console.error('Detailed error in chat message handler:', error);
+    res.status(500).json({
+      error: 'Failed to send message. Please try again.'
+    });
+  }
+}
+
+async function editChatMessage(req, res) {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const decoded = verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+    
+    const { chatId, message } = req.body;
+
+    // Verify the message belongs to the user
+    const [existingMessage] = await query(
+      'SELECT * FROM chats WHERE chat_id = ? AND sender_id = ?',
+      [chatId, userId]
+    );
+
+    if (!existingMessage) {
+      return res.status(403).json({ error: 'Not authorized to edit this message' });
+    }
+
+    await query(
+      'UPDATE chats SET message = ? WHERE chat_id = ?',
+      [message, chatId]
+    );
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error editing chat message:', error);
+    res.status(500).json({ error: 'Failed to edit message' });
+  }
+}
+
+async function deleteChatMessage(req, res) {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const decoded = verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+    
+    const chatId = req.url.split('/').pop();
+
+    // Verify the message belongs to the user
+    const [existingMessage] = await query(
+      'SELECT * FROM chats WHERE chat_id = ? AND sender_id = ?',
+      [chatId, userId]
+    );
+
+    if (!existingMessage) {
+      return res.status(403).json({ error: 'Not authorized to delete this message' });
+    }
+
+    await query('DELETE FROM chats WHERE chat_id = ?', [chatId]);
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error deleting chat message:', error);
+    res.status(500).json({ error: 'Failed to delete message' });
+  }
+}
 
 
 

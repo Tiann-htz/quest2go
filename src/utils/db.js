@@ -8,6 +8,7 @@ const pool = mysql.createPool({
   password: process.env.MYSQL_PASSWORD,
   connectionLimit: 10,
   waitForConnections: true,
+  timezone: '+08:00',  
   queueLimit: 0
 });
 

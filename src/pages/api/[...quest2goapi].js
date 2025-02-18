@@ -50,7 +50,16 @@ const handler = async (req, res) => {
           return authMiddleware(getChatMessages)(req, res);
         } else if (pathname === '/api/chat/requests') {
           return authMiddleware(getChatRequests)(req, res);
+        } else if (pathname === '/api/admin/chat/users') {
+          return authMiddleware(getRequestUsers)(req, res);
+        } else if (pathname.startsWith('/api/admin/chat/user-studies/')) {
+          const userId = pathname.split('/').pop();
+          req.query.userId = userId;
+          return authMiddleware(getUserStudies)(req, res);
+        } else if (pathname.startsWith('/api/admin/chat/study-messages')) {
+          return authMiddleware(getStudyMessages)(req, res);
         }
+        
         break;
       case 'PUT':
         if (pathname.startsWith('/api/admin/studies/')) {
@@ -75,6 +84,79 @@ const handler = async (req, res) => {
     res.status(500).json({ error: 'An error occurred while processing your request' });
   }
 };
+
+async function getStudyMessages(req, res) {
+  const { userId, researchId } = req.query;
+  
+  try {
+    const messages = await query(`
+      SELECT 
+        c.chat_id,
+        c.sender_id,
+        c.message,
+        c.timestamp,
+        c.is_read,
+        u.first_name,
+        u.last_name,
+        u.user_type
+      FROM chats c
+      JOIN user u ON c.sender_id = u.user_id
+      WHERE c.sender_id = ? 
+      AND c.research_id = ?
+      ORDER BY c.timestamp ASC
+    `, [userId, researchId]);
+    
+    res.status(200).json(messages);
+  } catch (error) {
+    console.error('Error fetching study messages:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+}
+
+async function getRequestUsers(req, res) {
+  try {
+    const users = await query(`
+      SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.user_type
+      FROM user u
+      JOIN research_access_requests rar ON u.user_id = rar.user_id
+      JOIN chats c ON u.user_id = c.sender_id
+      ORDER BY u.last_name, u.first_name
+    `);
+    
+    res.status(200).json(users);
+  } catch (error) {
+    console.error('Error fetching request users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+}
+
+// Get studies requested by a specific user
+async function getUserStudies(req, res) {
+  const { userId } = req.query;
+  
+  try {
+    const studies = await query(`
+      SELECT DISTINCT rs.research_id, rs.title, rs.status, rar.status as request_status
+      FROM research_studies rs
+      JOIN research_access_requests rar ON rs.research_id = rar.research_id
+      JOIN chats c ON rs.research_id = c.research_id
+      WHERE rar.user_id = ?
+      ORDER BY rs.title
+    `, [userId]);
+    
+    res.status(200).json(studies);
+  } catch (error) {
+    console.error('Error fetching user studies:', error);
+    res.status(500).json({ error: 'Failed to fetch studies' });
+  }
+}
+
+
+
+
+
+
+
 
 async function getChatRequests(req, res) {
   try {

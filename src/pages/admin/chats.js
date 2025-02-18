@@ -10,9 +10,6 @@ import {
   Settings,
   LogOut,
   Search,
-  MessageSquare,
-  MoreVertical,
-  Trash2
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -23,30 +20,66 @@ export default function Chats() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [admin, setAdmin] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [chats, setChats] = useState([
-    {
-      id: 1,
-      user: 'John Doe',
-      lastMessage: 'How do I access the research papers?',
-      timestamp: '5 mins ago',
-      unread: true
-    },
-    {
-      id: 2,
-      user: 'Jane Smith',
-      lastMessage: 'Thank you for your help!',
-      timestamp: '1 hour ago',
-      unread: false
-    }
-  ]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedStudy, setSelectedStudy] = useState(null);
+  const [requestUsers, setRequestUsers] = useState([]);
+  const [userStudies, setUserStudies] = useState([]);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
 
+  // Fetch users with access requests
   useEffect(() => {
-    // Simulate loading chat data
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
+    const fetchRequestUsers = async () => {
+      try {
+        const response = await axios.get('/api/admin/chat/users');
+        setRequestUsers(response.data);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        setIsLoading(false);
+      }
+    };
+
+    fetchRequestUsers();
   }, []);
 
+  // Fetch studies for selected user
+  useEffect(() => {
+    const fetchUserStudies = async () => {
+      if (selectedUser) {
+        try {
+          const response = await axios.get(`/api/admin/chat/user-studies/${selectedUser.user_id}`);
+          setUserStudies(response.data);
+          setSelectedStudy(null); // Reset selected study when user changes
+        } catch (error) {
+          console.error('Error fetching user studies:', error);
+        }
+      }
+    };
+
+    fetchUserStudies();
+  }, [selectedUser]);
+
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (selectedUser && selectedStudy) {
+        try {
+          const response = await axios.get('/api/admin/chat/study-messages', {
+            params: {
+              userId: selectedUser.user_id,
+              researchId: selectedStudy.research_id
+            }
+          });
+          setChatMessages(response.data);
+        } catch (error) {
+          console.error('Error fetching messages:', error);
+        }
+      }
+    };
+
+    fetchMessages();
+  }, [selectedUser, selectedStudy]);
+ 
   const handleLogout = async () => {
     try {
       await axios.post('/api/logout');
@@ -67,6 +100,11 @@ export default function Chats() {
       </div>
     );
   }
+
+  // Filter users based on search term
+  const filteredUsers = requestUsers.filter(user => 
+    `${user.first_name} ${user.last_name}`.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -109,13 +147,14 @@ export default function Chats() {
                 <div className="flex-1 px-4 flex justify-between">
                   <div className="flex-1 flex">
                     <div className="w-full flex md:ml-0">
-                      <div className="relative w-full text-gray-400 focus-within:text-gray-600"><div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
+                      <div className="relative w-full text-gray-400 focus-within:text-gray-600">
+                        <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none pl-3">
                           <Search className="h-5 w-5" />
                         </div>
                         <input
                           type="text"
-                          className="block w-full h-full pl-8 pr-3 py-2 border-transparent text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-0 focus:border-transparent sm:text-sm"
-                          placeholder="Search chats..."
+                          className="block w-full pl-10 pr-3 py-2 border-transparent text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-0 focus:border-transparent sm:text-sm"
+                          placeholder="Search users..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -133,30 +172,24 @@ export default function Chats() {
                     {/* Admin Profile Dropdown */}
                     <div className="relative">
                       <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsDropdownOpen(!isDropdownOpen);
-                        }}
+                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                         className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-100"
                       >
                         <div className="flex items-center space-x-3">
                           <div className="bg-indigo-100 p-2 rounded-full">
                             <User className="w-5 h-5 text-indigo-600" />
                           </div>
-                          <span className="hidden sm:inline text-gray-700 font-medium">{admin?.username}</span>
+                          <span className="hidden sm:inline text-gray-700 font-medium">
+                            {admin?.username || 'Admin'}
+                          </span>
                           <ChevronDown className="w-4 h-4 text-gray-500" />
                         </div>
                       </button>
 
                       {/* Dropdown Menu */}
                       {isDropdownOpen && (
-                        <div 
-                          onClick={(e) => e.stopPropagation()}
-                          className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-10 border border-gray-200"
-                        >
-                          <button 
-                            className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 w-full"
-                          >
+                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-10 border border-gray-200">
+                          <button className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 w-full">
                             <Settings className="w-4 h-4 mr-3" />
                             Settings
                           </button>
@@ -176,54 +209,144 @@ export default function Chats() {
             </div>
           </div>
 
-          {/* Main Content Area */}
-          <div className="flex-1 overflow-auto">
-            <main className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-semibold text-gray-900">Chat Management</h1>
-              </div>
-
-              {/* Chats List */}
-              <div className="bg-white shadow rounded-lg">
-                <div className="divide-y divide-gray-200">
-                  {chats.map((chat) => (
-                    <div key={chat.id} className="p-6 hover:bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="flex-shrink-0">
-                            <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center">
-                              <MessageSquare className="h-6 w-6 text-indigo-600" />
-                            </div>
-                          </div>
-                          <div>
-                            <h2 className="text-lg font-medium text-gray-900">{chat.user}</h2>
-                            <div className="flex items-center">
-                              <p className="text-sm text-gray-500 truncate max-w-md">{chat.lastMessage}</p>
-                              {chat.unread && (
-                                <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                                  New
-                                </span>
-                              )}
-                            </div>
-                          </div>
+          {/* Three-tier Chat Layout */}
+          <div className="flex-1 overflow-hidden">
+            <div className="h-full flex">
+              {/* Users Column */}
+              <div className="w-1/4 bg-white border-r border-gray-200 overflow-y-auto">
+                <div className="p-4">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Users</h2>
+                  {filteredUsers.map(user => (
+                    <div
+                      key={user.user_id}
+                      onClick={() => setSelectedUser(user)}
+                      className={`p-3 rounded-lg cursor-pointer ${
+                        selectedUser?.user_id === user.user_id ? 'bg-indigo-50' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="bg-indigo-100 p-2 rounded-full">
+                          <User className="w-5 h-5 text-indigo-600" />
                         </div>
-                        <div className="flex items-center space-x-4">
-                          <span className="text-sm text-gray-500">{chat.timestamp}</span>
-                          <div className="relative">
-                            <button className="text-gray-400 hover:text-gray-600">
-                              <MoreVertical className="w-5 h-5" />
-                            </button>
-                          </div>
-                          <button className="text-red-400 hover:text-red-600">
-                            <Trash2 className="w-5 h-5" />
-                          </button>
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {`${user.first_name} ${user.last_name}`}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {user.user_type}
+                          </p>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            </main>
+
+               {/* Studies Column */}
+  <div className="w-1/4 bg-white border-r border-gray-200 overflow-y-auto">
+    <div className="p-4">
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Studies</h2>
+      {selectedUser ? (
+        userStudies.length > 0 ? (
+          userStudies.map(study => (
+            <div
+              key={study.research_id}
+              onClick={() => setSelectedStudy(study)}
+              className={`p-3 rounded-lg cursor-pointer ${
+                selectedStudy?.research_id === study.research_id ? 'bg-indigo-50' : 'hover:bg-gray-50'
+              }`}
+            >
+              <div className="space-y-2">
+                <h3 className="font-medium text-gray-900">{study.title}</h3>
+                <p className="text-sm text-gray-500">
+                  Status: {study.status}
+                </p>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+            <p className="text-gray-500 mb-2">No study requests found</p>
+            <p className="text-sm text-gray-400">This user hasn't requested access to any studies yet</p>
+          </div>
+        )
+      ) : (
+        <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+          <p className="text-gray-500 mb-2">Select a user</p>
+          <p className="text-sm text-gray-400">Choose a user from the list to view their study requests</p>
+        </div>
+      )}
+    </div>
+  </div>
+
+  {/* Chat Messages Column */}
+  <div className="flex-1 bg-white overflow-hidden flex flex-col">
+    <div className="p-4 flex-1 overflow-y-auto">
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Messages</h2>
+      {selectedStudy ? (
+        <div className="space-y-4">
+          {chatMessages.length > 0 ? (
+            chatMessages.map(message => (
+              <div
+                key={message.chat_id}
+                className="flex flex-col space-y-1"
+              >
+                <div className="flex items-start space-x-2">
+                  <div className="bg-gray-100 rounded-lg p-3 max-w-3/4">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <span className="font-medium text-sm text-gray-900">
+                        {`${message.first_name} ${message.last_name}`}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        ({message.user_type})
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-800">{message.message}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {new Date(message.timestamp).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="flex items-center justify-center h-64 text-gray-500">
+              No messages for this study
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+          <p className="text-gray-500 mb-2">Select a study</p>
+          <p className="text-sm text-gray-400">Choose a study from the list to view the conversation</p>
+        </div>
+      )}
+    </div>
+
+    {/* Message Input Area */}
+    {selectedStudy && (
+      <div className="p-4 border-t border-gray-200">
+        <div className="flex space-x-4">
+          <div className="flex-1">
+            <textarea
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Type your message..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+              rows="3"
+            />
+          </div>
+          <button
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 self-end disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!newMessage.trim()}
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

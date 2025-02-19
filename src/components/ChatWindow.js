@@ -1,3 +1,4 @@
+// Part 1: Function Definition and Hooks
 import React, { useEffect, useRef, useState } from 'react';
 import { X as XIcon, MessageCircle, MoreVertical } from "lucide-react";
 import axios from 'axios';
@@ -13,8 +14,11 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const ChatWindow = ({ article, onClose, isOpen }) => {
+    // All refs
     const chatRef = useRef(null);
     const messagesEndRef = useRef(null);
+
+    // All state declarations
     const [position, setPosition] = useState({ x: window.innerWidth - 340, y: window.innerHeight - 400 });
     const [isDragging, setIsDragging] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -26,25 +30,103 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
     const [messageMenuOpen, setMessageMenuOpen] = useState(null);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [messageToDelete, setMessageToDelete] = useState(null);
-    
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
+    const [isMobile, setIsMobile] = useState(false);
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
 
+    // Mobile detection effect
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth <= 768);
+        };
+        
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    // Keyboard visibility effect
+    useEffect(() => {
+        if (isMobile) {
+            const handleResize = () => {
+                const isKeyboardVisible = window.innerHeight < window.outerHeight * 0.85;
+                setKeyboardVisible(isKeyboardVisible);
+            };
+
+            window.addEventListener('resize', handleResize);
+            return () => window.removeEventListener('resize', handleResize);
+        }
+    }, [isMobile]);
+
+    // Position and messages initialization effect
     useEffect(() => {
         if (chatRef.current) {
-            const windowWidth = window.innerWidth;
-            const chatWidth = 320;
-            const initialX = (windowWidth - chatWidth) / 2;
-            const initialY = window.innerHeight - chatRef.current.offsetHeight - 40;
-            setPosition({ x: initialX, y: initialY });
+            if (isMobile) {
+                setPosition({
+                    x: 0,
+                    y: keyboardVisible ? 0 : window.innerHeight - chatRef.current.offsetHeight
+                });
+            } else {
+                const windowWidth = window.innerWidth;
+                const chatWidth = 320;
+                const initialX = (windowWidth - chatWidth) / 2;
+                const initialY = window.innerHeight - chatRef.current.offsetHeight - 40;
+                setPosition({ x: initialX, y: initialY });
+            }
         }
         
         if (article?.id) {
             fetchMessages();
         }
-    }, [article?.id]);
+    }, [article?.id, isMobile, keyboardVisible]);
 
+    // Scroll effect
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
+
+    // Drag handling effect
+    useEffect(() => {
+        if (!isMobile && isDragging) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', () => setIsDragging(false));
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', () => setIsDragging(false));
+        };
+    }, [isDragging, dragOffset, isMobile]);
+
+    // Helper functions
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    const handleMouseMove = (e) => {
+        if (!isMobile && isDragging && chatRef.current) {
+            const newX = e.clientX - dragOffset.x;
+            const newY = e.clientY - dragOffset.y;
+            const maxX = window.innerWidth - chatRef.current.offsetWidth;
+            const maxY = window.innerHeight - chatRef.current.offsetHeight;
+            setPosition({
+                x: Math.min(Math.max(0, newX), maxX),
+                y: Math.min(Math.max(0, newY), maxY)
+            });
+        }
+    };
+
+    const handleMouseDown = (e) => {
+        if (!isMobile && chatRef.current && e.target.closest('.chat-header')) {
+            setIsDragging(true);
+            const rect = chatRef.current.getBoundingClientRect();
+            setDragOffset({
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            });
+        }
+    };
+
+    // API functions
     const fetchMessages = async () => {
         try {
             const response = await axios.get(`/api/chat/messages/${article.id}`, {
@@ -56,50 +138,6 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
         } catch (err) {
             console.error('Failed to fetch messages:', err);
             setError('Failed to load messages');
-        }
-    };
-
-    useEffect(() => {
-        scrollToBottom();
-    }, [messages]);
-
-    useEffect(() => {
-        const handleMouseMove = (e) => {
-            if (isDragging && chatRef.current) {
-                const newX = e.clientX - dragOffset.x;
-                const newY = e.clientY - dragOffset.y;
-                const maxX = window.innerWidth - chatRef.current.offsetWidth;
-                const maxY = window.innerHeight - chatRef.current.offsetHeight;
-                setPosition({
-                    x: Math.min(Math.max(0, newX), maxX),
-                    y: Math.min(Math.max(0, newY), maxY)
-                });
-            }
-        };
-
-        const handleMouseUp = () => {
-            setIsDragging(false);
-        };
-
-        if (isDragging) {
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-        }
-
-        return () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isDragging, dragOffset]);
-
-    const handleMouseDown = (e) => {
-        if (chatRef.current && e.target.closest('.chat-header')) {
-            setIsDragging(true);
-            const rect = chatRef.current.getBoundingClientRect();
-            setDragOffset({
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top
-            });
         }
     };
 
@@ -121,7 +159,6 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
             });
             
             if (response.data.success) {
-                // Add the new message to the messages array
                 const newMessage = {
                     id: response.data.chatId,
                     message: message.trim(),
@@ -136,13 +173,6 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
             setError(err.response?.data?.error || 'Failed to send message. Please try again.');
         } finally {
             setIsSending(false);
-        }
-    };
-
-    const handleKeyPress = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSendMessage();
         }
     };
 
@@ -180,6 +210,13 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
         }
     };
 
+    const handleKeyPress = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
+    };
+
     const formatTimestamp = (timestamp) => {
         return new Date(timestamp).toLocaleTimeString([], { 
             hour: '2-digit', 
@@ -187,6 +224,31 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
         });
     };
 
+    // Style functions
+    const getChatWindowStyles = () => {
+        if (isMobile) {
+            return {
+                position: 'fixed',
+                left: 0,
+                right: 0,
+                bottom: 0,
+                top: keyboardVisible ? 0 : 'auto',
+                height: keyboardVisible ? '100%' : '80vh',
+                width: '100%',
+                transform: 'none',
+                borderRadius: keyboardVisible ? '0' : '12px 12px 0 0'
+            };
+        }
+
+        return {
+            position: 'fixed',
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            transform: 'none'
+        };
+    };
+
+    // Message component
     const Message = ({ msg }) => {
         const [editText, setEditText] = useState(msg.message);
         const isEditing = editingMessage === msg.id;
@@ -267,22 +329,22 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
         );
     };
 
+// Part 2: Return/Render Function
     if (!isOpen) return null;
 
     return (
         <>
             <div 
                 ref={chatRef}
-                style={{
-                    position: 'fixed',
-                    left: `${position.x}px`,
-                    top: `${position.y}px`,
-                    transform: 'none'
-                }}
-                className="w-80 bg-white rounded-lg shadow-xl z-50 flex flex-col"
-                onMouseDown={handleMouseDown}
+                style={getChatWindowStyles()}
+                className={`bg-white shadow-xl z-50 flex flex-col ${
+                    isMobile ? 'w-full' : 'w-80'
+                }`}
+                onMouseDown={!isMobile ? handleMouseDown : undefined}
             >
-                <div className="chat-header bg-indigo-600 text-white p-3 rounded-t-lg flex justify-between items-center cursor-move">
+                <div className={`chat-header bg-indigo-600 text-white p-3 flex justify-between items-center ${
+                    isMobile ? '' : 'cursor-move rounded-t-lg'
+                }`}>
                     <h3 className="text-sm font-medium truncate flex-1 pr-2">
                         {article.title}
                     </h3>
@@ -294,7 +356,9 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
                     </button>
                 </div>
                 
-                <div className="p-4 h-80 overflow-y-auto bg-gray-50">
+                <div className={`p-4 overflow-y-auto bg-gray-50 ${
+                    isMobile ? 'flex-grow' : 'h-80'
+                }`}>
                     {error && (
                         <div className="mb-4 p-2 bg-red-100 text-red-600 rounded-lg text-sm">
                             {error}
@@ -318,7 +382,9 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
                     )}
                 </div>
                 
-                <div className="border-t border-gray-200 p-3 bg-white">
+                <div className={`border-t border-gray-200 p-3 bg-white ${
+                    keyboardVisible ? 'sticky bottom-0' : ''
+                }`}>
                     <div className="relative">
                         <textarea
                             value={message}

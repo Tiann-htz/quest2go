@@ -11,7 +11,12 @@ export function authMiddleware(handler) {
 
       const decoded = verify(token, process.env.JWT_SECRET);
       req.userId = decoded.userId;
-      req.isAdmin = decoded.isAdmin || false; // Add admin status to request
+      req.isAdmin = decoded.isAdmin || false;
+      
+      // Add adminId to request if it exists
+      if (decoded.isAdmin && decoded.adminId) {
+        req.adminId = decoded.adminId;
+      }
 
       // For admin-only routes, check if user is admin
       if (req.url.startsWith('/api/admin') && !decoded.isAdmin) {

@@ -79,6 +79,19 @@ export default function Chats() {
 
     fetchMessages();
   }, [selectedUser, selectedStudy]);
+
+  useEffect(() => {
+    const fetchAdminInfo = async () => {
+      try {
+        const response = await axios.get('/api/admin/user');
+        setAdmin(response.data);
+      } catch (error) {
+        console.error('Error fetching admin info:', error);
+      }
+    };
+  
+    fetchAdminInfo();
+  }, []);
  
   const handleLogout = async () => {
     try {
@@ -86,6 +99,25 @@ export default function Chats() {
       router.push('/login');
     } catch (error) {
       console.error('Logout error:', error);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedUser || !selectedStudy) return;
+  
+    try {
+      const response = await axios.post('/api/admin/chat/reply', {
+        userId: selectedUser.user_id,
+        researchId: selectedStudy.research_id,
+        reply: newMessage
+      });
+  
+      if (response.data.success) {
+        setChatMessages(response.data.messages);
+        setNewMessage('');
+      }
+    } catch (error) {
+      console.error('Error sending reply:', error);
     }
   };
 
@@ -287,28 +319,37 @@ export default function Chats() {
         <div className="space-y-4">
           {chatMessages.length > 0 ? (
             chatMessages.map(message => (
-              <div
-                key={message.chat_id}
-                className="flex flex-col space-y-1"
-              >
-                <div className="flex items-start space-x-2">
-                  <div className="bg-gray-100 rounded-lg p-3 max-w-3/4">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <span className="font-medium text-sm text-gray-900">
-                        {`${message.first_name} ${message.last_name}`}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        ({message.user_type})
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-800">{message.message}</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {new Date(message.timestamp).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))
+  <div
+    key={message.chat_id}
+    className={`flex flex-col space-y-1 ${
+      message.adminsender_id ? 'items-end' : 'items-start'
+    }`}
+  >
+    <div 
+      className={`flex items-start space-x-2 max-w-3/4 ${
+        message.adminsender_id 
+          ? 'bg-indigo-100 ml-auto' 
+          : 'bg-gray-100 mr-auto'
+      } rounded-lg p-3`}
+    >
+      <div className="w-full">
+        <div className="flex items-center space-x-2 mb-1">
+          <span className="font-medium text-sm text-gray-900">
+            {message.adminsender_id 
+              ? `${message.admin_username} (Admin)`
+              : `${message.first_name} ${message.last_name} (${message.user_type})`}
+          </span>
+        </div>
+        <p className="text-sm text-gray-800">
+          {message.adminsender_id ? message.replies : message.message}
+        </p>
+        <p className="text-xs text-gray-500 mt-1">
+          {new Date(message.timestamp).toLocaleString()}
+        </p>
+      </div>
+    </div>
+  </div>
+))
           ) : (
             <div className="flex items-center justify-center h-64 text-gray-500">
               No messages for this study
@@ -325,26 +366,27 @@ export default function Chats() {
 
     {/* Message Input Area */}
     {selectedStudy && (
-      <div className="p-4 border-t border-gray-200">
-        <div className="flex space-x-4">
-          <div className="flex-1">
-            <textarea
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Type your message..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
-              rows="3"
-            />
-          </div>
-          <button
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 self-end disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!newMessage.trim()}
-          >
-            Send
-          </button>
-        </div>
+  <div className="p-4 border-t border-gray-200">
+    <div className="flex space-x-4">
+      <div className="flex-1">
+        <textarea
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          placeholder="Type your reply..."
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+          rows="3"
+        />
       </div>
-    )}
+      <button
+        onClick={handleSendMessage}
+        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 self-end disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={!newMessage.trim()}
+      >
+        Send Reply
+      </button>
+    </div>
+  </div>
+)}
               </div>
             </div>
           </div>

@@ -29,6 +29,8 @@ const handler = async (req, res) => {
           return authMiddleware(handleChatMessage)(req, res);
       } else if (pathname === '/api/chat/edit') {
         return authMiddleware(editChatMessage)(req, res);
+      } else if (pathname === '/api/admin/chat/reply') {
+        return authMiddleware(handleAdminReply)(req, res);
       }
         break;
       case 'GET':
@@ -58,6 +60,8 @@ const handler = async (req, res) => {
           return authMiddleware(getUserStudies)(req, res);
         } else if (pathname.startsWith('/api/admin/chat/study-messages')) {
           return authMiddleware(getStudyMessages)(req, res);
+        } else if (pathname.startsWith('/api/chat/admin-replies/')) {
+          return authMiddleware(getAdminReplies)(req, res);
         }
         
         break;
@@ -85,88 +89,134 @@ const handler = async (req, res) => {
   }
 };
 
-async function getStudyMessages(req, res) {
-  const { userId, researchId } = req.query;
-  
+async function getAdminReplies(req, res) {
   try {
-    const messages = await query(`
-      SELECT 
-        c.chat_id,
-        c.sender_id,
-        c.message,
-        c.timestamp,
-        c.is_read,
-        u.first_name,
-        u.last_name,
-        u.user_type
-      FROM chats c
-      JOIN user u ON c.sender_id = u.user_id
-      WHERE c.sender_id = ? 
-      AND c.research_id = ?
-      ORDER BY c.timestamp ASC
-    `, [userId, researchId]);
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const decoded = verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
     
-    res.status(200).json(messages);
+    // Extract research_id from URL
+    const research_id = req.url.split('/').pop();
+    
+    if (!research_id || research_id === 'undefined') {
+      return res.status(400).json({ error: 'Research ID is required' });
+    }
+
+    // Get only the chat_id and replies - exclude the message field
+    const adminReplies = await query(
+      `SELECT c.chat_id, c.replies
+       FROM chats c
+       WHERE c.sender_id = ?
+       AND c.research_id = ?
+       AND c.replies IS NOT NULL
+       AND c.replies != ''`,
+      [userId, research_id]
+    );
+
+    res.status(200).json({ replies: adminReplies });
   } catch (error) {
-    console.error('Error fetching study messages:', error);
+    console.error('Error fetching admin replies:', error);
+    res.status(500).json({ error: 'Failed to fetch admin replies' });
+  }
+}
+
+// In your API file (quest2go-api.js)
+
+async function getChatMessages(req, res) {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const decoded = verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+    const isAdmin = decoded.isAdmin || false;
+    
+    const research_id = req.url.split('/').pop();
+    
+    if (!research_id || research_id === 'undefined') {
+      return res.status(400).json({ error: 'Research ID is required' });
+    }
+
+    let messages;
+    if (isAdmin) {
+      // Admin can see all messages for the research study
+      messages = await query(
+        `SELECT c.*, 
+          CASE WHEN c.sender_id = ? THEN true ELSE false END as isCurrentUser,
+          u.first_name, u.last_name
+         FROM chats c
+         JOIN user u ON c.sender_id = u.user_id
+         WHERE c.research_id = ?
+         AND ((c.message IS NOT NULL AND c.message != '') OR (c.replies IS NOT NULL AND c.replies != ''))
+         ORDER BY c.timestamp ASC`,
+        [userId, research_id]
+      );
+    } else {
+      // Regular users only see their own messages and admin replies
+      messages = await query(
+        `WITH UserMessages AS (
+          SELECT 
+            c.*,
+            u.first_name,
+            u.last_name,
+            TRUE as isCurrentUser,
+            c.timestamp as message_timestamp,
+            NULL as reply_timestamp
+          FROM chats c
+          JOIN user u ON c.sender_id = u.user_id
+          WHERE c.research_id = ?
+            AND c.sender_id = ?
+            AND c.message IS NOT NULL 
+            AND c.message != ''
+            AND c.adminsender_id IS NULL
+        ),
+        AdminReplies AS (
+          SELECT 
+            c.*,
+            u.first_name,
+            u.last_name,
+            FALSE as isCurrentUser,
+            NULL as message_timestamp,
+            c.timestamp as reply_timestamp
+          FROM chats c
+          JOIN user u ON c.sender_id = u.user_id
+          WHERE c.research_id = ?
+            AND c.sender_id = ?
+            AND c.replies IS NOT NULL 
+            AND c.replies != ''
+            AND c.adminsender_id IS NOT NULL
+        )
+        SELECT * FROM UserMessages
+        UNION ALL
+        SELECT * FROM AdminReplies
+        ORDER BY COALESCE(message_timestamp, reply_timestamp) ASC`,
+        [research_id, userId, research_id, userId]
+      );
+    }
+
+    const formattedMessages = messages.map(msg => ({
+      id: msg.chat_id,
+      message: msg.message || null, // Explicitly set null if no message
+      timestamp: msg.message_timestamp || msg.timestamp,
+      isCurrentUser: msg.isCurrentUser,
+      senderName: `${msg.first_name} ${msg.last_name}`,
+      reply: msg.replies,
+      replyTimestamp: msg.reply_timestamp
+    })).filter(msg => msg.message || msg.reply); // Additional filter for safety
+
+    res.status(200).json({ messages: formattedMessages });
+  } catch (error) {
+    console.error('Error fetching chat messages:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });
   }
 }
 
-async function getRequestUsers(req, res) {
-  try {
-    const users = await query(`
-      SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.user_type
-      FROM user u
-      JOIN research_access_requests rar ON u.user_id = rar.user_id
-      JOIN chats c ON u.user_id = c.sender_id
-      ORDER BY u.last_name, u.first_name
-    `);
-    
-    res.status(200).json(users);
-  } catch (error) {
-    console.error('Error fetching request users:', error);
-    res.status(500).json({ error: 'Failed to fetch users' });
-  }
-}
-
-// Get studies requested by a specific user
-async function getUserStudies(req, res) {
-  const { userId } = req.query;
-  
-  try {
-    const studies = await query(`
-      SELECT DISTINCT rs.research_id, rs.title, rs.status, rar.status as request_status
-      FROM research_studies rs
-      JOIN research_access_requests rar ON rs.research_id = rar.research_id
-      JOIN chats c ON rs.research_id = c.research_id
-      WHERE rar.user_id = ?
-      ORDER BY rs.title
-    `, [userId]);
-    
-    res.status(200).json(studies);
-  } catch (error) {
-    console.error('Error fetching user studies:', error);
-    res.status(500).json({ error: 'Failed to fetch studies' });
-  }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//Users Chat Requests
 async function getChatRequests(req, res) {
   try {
     const token = req.cookies.token;
@@ -230,68 +280,7 @@ async function getChatRequests(req, res) {
   }
 }
 
-async function getChatMessages(req, res) {
-  try {
-    const token = req.cookies.token;
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
 
-    const decoded = verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId;
-    const isAdmin = decoded.isAdmin || false;
-    
-    // Extract research_id from URL
-    const research_id = req.url.split('/').pop();
-    
-    if (!research_id || research_id === 'undefined') {
-      return res.status(400).json({ error: 'Research ID is required' });
-    }
-
-    // Different queries for admin and regular users
-    let messages;
-    if (isAdmin) {
-      // Admin can see all messages for the research study
-      messages = await query(
-        `SELECT c.*, 
-          CASE WHEN c.sender_id = ? THEN true ELSE false END as isCurrentUser,
-          u.first_name, u.last_name
-         FROM chats c
-         JOIN user u ON c.sender_id = u.user_id
-         WHERE c.research_id = ?
-         ORDER BY c.timestamp ASC`,
-        [userId, research_id]
-      );
-    } else {
-      // Regular users can only see their own messages
-      messages = await query(
-        `SELECT c.*, 
-          CASE WHEN c.sender_id = ? THEN true ELSE false END as isCurrentUser,
-          u.first_name, u.last_name
-         FROM chats c
-         JOIN user u ON c.sender_id = u.user_id
-         WHERE c.research_id = ? 
-         AND (c.sender_id = ? OR u.user_type = 'admin')
-         ORDER BY c.timestamp ASC`,
-        [userId, research_id, userId]
-      );
-    }
-
-    // Format messages for frontend
-    const formattedMessages = messages.map(msg => ({
-      id: msg.chat_id,
-      message: msg.message,
-      timestamp: msg.timestamp,
-      isCurrentUser: msg.isCurrentUser,
-      senderName: `${msg.first_name} ${msg.last_name}`
-    }));
-
-    res.status(200).json({ messages: formattedMessages });
-  } catch (error) {
-    console.error('Error fetching chat messages:', error);
-    res.status(500).json({ error: 'Failed to fetch messages' });
-  }
-}
 
 async function handleChatMessage(req, res) {
   try {
@@ -350,6 +339,10 @@ async function handleChatMessage(req, res) {
     });
   }
 }
+
+
+
+
 
 async function editChatMessage(req, res) {
   try {
@@ -422,6 +415,140 @@ async function deleteChatMessage(req, res) {
 
 
 
+//Admin Side
+async function handleAdminReply(req, res) {
+  const adminId = req.adminId;
+  const { userId, researchId, reply } = req.body;
+  
+  if (!adminId) {
+    return res.status(401).json({ error: 'Admin ID not found in session' });
+  }
+  
+  try {
+    // Insert the admin's reply
+    const result = await query(`
+      INSERT INTO chats (
+        sender_id,
+        research_id,
+        message,
+        adminsender_id,
+        replies,
+        is_read
+      ) VALUES (?, ?, NULL, ?, ?, 1)
+    `, [userId, researchId, adminId, reply]);
+    
+    // Fetch the updated messages with the same scoping as getStudyMessages
+    const messages = await query(`
+      SELECT 
+        c.chat_id,
+        c.sender_id,
+        c.message,
+        c.adminsender_id,
+        c.replies,
+        c.timestamp,
+        c.is_read,
+        u.first_name,
+        u.last_name,
+        u.user_type,
+        COALESCE(a.username, 'Admin') as admin_username
+      FROM chats c
+      LEFT JOIN user u ON c.sender_id = u.user_id
+      LEFT JOIN admin_accounts a ON c.adminsender_id = a.admin_id
+      WHERE 
+        c.research_id = ?
+        AND (
+          c.sender_id = ?
+          OR (
+            c.adminsender_id IS NOT NULL
+            AND c.sender_id = ?
+          )
+        )
+      ORDER BY c.timestamp ASC
+    `, [researchId, userId, userId]);
+    
+    res.status(200).json({ success: true, messages });
+  } catch (error) {
+    console.error('Error handling admin reply:', error);
+    res.status(500).json({ error: 'Failed to send reply' });
+  }
+}
+
+async function getStudyMessages(req, res) {
+  const { userId, researchId } = req.query;
+  
+  try {
+    const messages = await query(`
+      SELECT 
+        c.chat_id,
+        c.sender_id,
+        c.message,
+        c.adminsender_id,
+        c.replies,
+        c.timestamp,
+        c.is_read,
+        u.first_name,
+        u.last_name,
+        u.user_type,
+        COALESCE(a.username, 'Admin') as admin_username
+      FROM chats c
+      LEFT JOIN user u ON c.sender_id = u.user_id
+      LEFT JOIN admin_accounts a ON c.adminsender_id = a.admin_id
+      WHERE 
+        c.research_id = ?
+        AND (
+          c.sender_id = ?  
+          OR (
+            c.adminsender_id IS NOT NULL  
+            AND c.sender_id = ?          
+          )
+        )
+      ORDER BY c.timestamp ASC
+    `, [researchId, userId, userId]);
+    
+    res.status(200).json(messages);
+  } catch (error) {
+    console.error('Error fetching study messages:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+}
+
+async function getRequestUsers(req, res) {
+  try {
+    const users = await query(`
+      SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.user_type
+      FROM user u
+      JOIN research_access_requests rar ON u.user_id = rar.user_id
+      JOIN chats c ON u.user_id = c.sender_id
+      ORDER BY u.last_name, u.first_name
+    `);
+    
+    res.status(200).json(users);
+  } catch (error) {
+    console.error('Error fetching request users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+}
+
+// Get studies requested by a specific user
+async function getUserStudies(req, res) {
+  const { userId } = req.query;
+  
+  try {
+    const studies = await query(`
+      SELECT DISTINCT rs.research_id, rs.title, rs.status, rar.status as request_status
+      FROM research_studies rs
+      JOIN research_access_requests rar ON rs.research_id = rar.research_id
+      JOIN chats c ON rs.research_id = c.research_id
+      WHERE rar.user_id = ?
+      ORDER BY rs.title
+    `, [userId]);
+    
+    res.status(200).json(studies);
+  } catch (error) {
+    console.error('Error fetching user studies:', error);
+    res.status(500).json({ error: 'Failed to fetch studies' });
+  }
+}
 
 
 
@@ -851,6 +978,7 @@ async function handleAdminLogin(req, res) {
     const token = sign(
       {
         userId: admin.admin_id,
+        adminId: admin.admin_id,
         email: admin.email,
         username: admin.username,
         isAdmin: true

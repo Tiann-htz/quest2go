@@ -1,4 +1,3 @@
-// Part 1: Function Definition and Hooks
 import React, { useEffect, useRef, useState } from 'react';
 import { X as XIcon, MessageCircle, MoreVertical } from "lucide-react";
 import axios from 'axios';
@@ -14,11 +13,9 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const ChatWindow = ({ article, onClose, isOpen }) => {
-    // All refs
     const chatRef = useRef(null);
     const messagesEndRef = useRef(null);
 
-    // All state declarations
     const [position, setPosition] = useState({ x: window.innerWidth - 340, y: window.innerHeight - 400 });
     const [isDragging, setIsDragging] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -32,6 +29,7 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
     const [messageToDelete, setMessageToDelete] = useState(null);
     const [isMobile, setIsMobile] = useState(false);
     const [keyboardVisible, setKeyboardVisible] = useState(false);
+    const [adminReplies, setAdminReplies] = useState({});
 
     // Mobile detection effect
     useEffect(() => {
@@ -44,7 +42,6 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Keyboard visibility effect
     useEffect(() => {
         if (isMobile) {
             const handleResize = () => {
@@ -76,6 +73,7 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
         
         if (article?.id) {
             fetchMessages();
+            fetchAdminReplies();
         }
     }, [article?.id, isMobile, keyboardVisible]);
 
@@ -97,7 +95,6 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
         };
     }, [isDragging, dragOffset, isMobile]);
 
-    // Helper functions
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
@@ -126,6 +123,15 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
         }
     };
 
+    const filterValidMessages = (messages) => {
+        return messages.filter(msg => {
+            // Keep messages that either:
+            // 1. Have actual message content from the user
+            // 2. Have an admin reply
+            return (msg.message && msg.message.trim() !== '') || msg.reply;
+        });
+    };
+
     // API functions
     const fetchMessages = async () => {
         try {
@@ -133,11 +139,33 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
                 withCredentials: true
             });
             if (response.data.messages) {
-                setMessages(response.data.messages);
+                // Filter messages before setting them
+                const filteredMessages = filterValidMessages(response.data.messages);
+                setMessages(filteredMessages);
             }
         } catch (err) {
             console.error('Failed to fetch messages:', err);
             setError('Failed to load messages');
+        }
+    };
+
+    // New function to fetch admin replies
+    const fetchAdminReplies = async () => {
+        try {
+            const response = await axios.get(`/api/chat/admin-replies/${article.id}`, {
+                withCredentials: true
+            });
+            if (response.data.replies) {
+                // Convert array to object with message ID as key
+                const repliesMap = {};
+                response.data.replies.forEach(reply => {
+                    repliesMap[reply.chat_id] = reply.replies;
+                });
+                setAdminReplies(repliesMap);
+            }
+        } catch (err) {
+            console.error('Failed to fetch admin replies:', err);
+            // Not setting error here as this is secondary content
         }
     };
 
@@ -166,7 +194,6 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
                     isCurrentUser: true
                 };
                 setMessages(prev => [...prev, newMessage]);
-                await fetchMessages();
                 setMessage('');
             }
         } catch (err) {
@@ -224,7 +251,6 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
         });
     };
 
-    // Style functions
     const getChatWindowStyles = () => {
         if (isMobile) {
             return {
@@ -252,84 +278,106 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
     const Message = ({ msg }) => {
         const [editText, setEditText] = useState(msg.message);
         const isEditing = editingMessage === msg.id;
+        const hasReply = adminReplies[msg.id];
+        
+        // Skip rendering if there's no message content and no reply
+        if (!msg.message && !hasReply) {
+            return null;
+        }
 
         return (
-            <div className={`flex ${msg.isCurrentUser ? 'justify-end' : 'justify-start'} group`}>
-                {msg.isCurrentUser && !isEditing && (
-                    <button
-                        onClick={() => setMessageMenuOpen(messageMenuOpen === msg.id ? null : msg.id)}
-                        className="relative top-2 p-1 rounded-full hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity mr-1"
-                    >
-                        <MoreVertical className="h-4 w-4 text-gray-500" />
-                    </button>
+            <div className="space-y-2">
+                {/* Only render the user message if it has content */}
+                {msg.message && msg.message.trim() !== '' && (
+                    <div className="flex justify-end group">
+                        {!isEditing && (
+                            <button
+                                onClick={() => setMessageMenuOpen(messageMenuOpen === msg.id ? null : msg.id)}
+                                className="relative top-2 p-1 rounded-full hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity mr-1"
+                            >
+                                <MoreVertical className="h-4 w-4 text-gray-500" />
+                            </button>
                 )}
-                
-                <div className={`relative max-w-[80%] rounded-lg p-3 ${
-                    msg.isCurrentUser 
-                        ? 'bg-indigo-600 text-white' 
-                        : 'bg-white border border-gray-200'
-                }`}>
-                    {messageMenuOpen === msg.id && (
-                        <div className="absolute left-0 top-0 mt-8 w-32 bg-white rounded-lg shadow-lg py-1 z-10">
-                            <button
-                                onClick={() => {
-                                    setEditingMessage(msg.id);
-                                    setMessageMenuOpen(null);
-                                }}
-                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
-                            >
-                                Edit
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setMessageToDelete(msg.id);
-                                    setDeleteConfirmOpen(true);
-                                    setMessageMenuOpen(null);
-                                }}
-                                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100"
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    )}
-
-                    {isEditing ? (
-                        <div className="space-y-2">
-                            <textarea
-                                value={editText}
-                                onChange={(e) => setEditText(e.target.value)}
-                                className="w-full p-2 text-sm text-gray-900 bg-white border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                rows="2"
-                            />
-                            <div className="flex justify-end space-x-2">
+                    
+                    <div className="relative max-w-[80%] rounded-lg p-3 bg-indigo-600 text-white">
+                        {messageMenuOpen === msg.id && (
+                            <div className="absolute left-0 top-0 mt-8 w-32 bg-white rounded-lg shadow-lg py-1 z-10">
                                 <button
-                                    onClick={() => setEditingMessage(null)}
-                                    className="px-2 py-1 text-xs text-gray-600 hover:text-gray-800"
+                                    onClick={() => {
+                                        setEditingMessage(msg.id);
+                                        setMessageMenuOpen(null);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
                                 >
-                                    Cancel
+                                    Edit
                                 </button>
                                 <button
-                                    onClick={() => handleEditMessage(msg.id, editText)}
-                                    className="px-2 py-1 text-xs text-indigo-600 hover:text-indigo-800"
+                                    onClick={() => {
+                                        setMessageToDelete(msg.id);
+                                        setDeleteConfirmOpen(true);
+                                        setMessageMenuOpen(null);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100"
                                 >
-                                    Save
+                                    Delete
                                 </button>
                             </div>
-                        </div>
-                    ) : (
-                        <>
+                        )}
+
+                        {isEditing ? (
+                            <div className="space-y-2">
+                                <textarea
+                                    value={editText}
+                                    onChange={(e) => setEditText(e.target.value)}
+                                    className="w-full p-2 text-sm text-gray-900 bg-white border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    rows="2"
+                                />
+                                <div className="flex justify-end space-x-2">
+                                    <button
+                                        onClick={() => setEditingMessage(null)}
+                                        className="px-2 py-1 text-xs text-gray-600 hover:text-gray-800"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => handleEditMessage(msg.id, editText)}
+                                        className="px-2 py-1 text-xs text-indigo-600 hover:text-indigo-800"
+                                    >
+                                        Save
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
                             <p className="text-sm">{msg.message}</p>
-                            <p className={`text-xs mt-1 ${msg.isCurrentUser ? 'text-indigo-200' : 'text-gray-500'}`}>
-                                {formatTimestamp(msg.timestamp)}
-                            </p>
-                        </>
-                    )}
-                </div>
+                                    <p className="text-xs mt-1 text-indigo-200">
+                                        {formatTimestamp(msg.timestamp)}
+                                    </p>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Display admin reply if available */}
+                {hasReply && !isEditing && (
+                    <div className="flex justify-start">
+                        <div className="max-w-[80%] rounded-lg p-3 bg-white border border-gray-200">
+                            <p className="text-sm">{adminReplies[msg.id]}</p>
+                            <div className="flex items-center mt-1">
+                                <span className="text-xs text-gray-500 mr-2">Admin</span>
+                                <span className="text-xs text-gray-400">
+                                    {msg.replyTimestamp ? formatTimestamp(msg.replyTimestamp) : ''}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     };
+        
 
-// Part 2: Return/Render Function
     if (!isOpen) return null;
 
     return (
@@ -373,7 +421,7 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
                             </p>
                         </div>
                     ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             {messages.map((msg) => (
                                 <Message key={msg.id} msg={msg} />
                             ))}

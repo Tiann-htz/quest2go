@@ -124,7 +124,6 @@ async function getAdminReplies(req, res) {
   }
 }
 
-// In your API file (quest2go-api.js)
 
 async function getChatMessages(req, res) {
   try {
@@ -202,13 +201,13 @@ async function getChatMessages(req, res) {
 
     const formattedMessages = messages.map(msg => ({
       id: msg.chat_id,
-      message: msg.message || null, // Explicitly set null if no message
+      message: msg.message || null, 
       timestamp: msg.message_timestamp || msg.timestamp,
       isCurrentUser: msg.isCurrentUser,
       senderName: `${msg.first_name} ${msg.last_name}`,
       reply: msg.replies,
       replyTimestamp: msg.reply_timestamp
-    })).filter(msg => msg.message || msg.reply); // Additional filter for safety
+    })).filter(msg => msg.message || msg.reply); 
 
     res.status(200).json({ messages: formattedMessages });
   } catch (error) {
@@ -216,6 +215,7 @@ async function getChatMessages(req, res) {
     res.status(500).json({ error: 'Failed to fetch messages' });
   }
 }
+
 
 async function getChatRequests(req, res) {
   try {

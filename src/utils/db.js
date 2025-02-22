@@ -8,7 +8,8 @@ const pool = mysql.createPool({
   password: process.env.MYSQL_PASSWORD,
   connectionLimit: 10,
   waitForConnections: true,
-  timezone: '+08:00',  
+  timezone: 'Asia/Manila',
+  dateStrings: false, // This ensures we get JS Date objects instead of strings  
   queueLimit: 0
 });
 

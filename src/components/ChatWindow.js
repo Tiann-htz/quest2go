@@ -178,7 +178,8 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
         try {
             const response = await axios.post('/api/chat/send', {
                 research_id: article.id,
-                message: message.trim()
+                message: message.trim(),
+                timestamp: new Date().toISOString() // This will be converted to UTC in the database
             }, {
                 withCredentials: true,
                 headers: {
@@ -245,9 +246,13 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
     };
 
     const formatTimestamp = (timestamp) => {
-        return new Date(timestamp).toLocaleTimeString([], { 
+        // Create a date object that correctly interprets the timestamp as Manila time
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString('en-PH', { 
             hour: '2-digit', 
-            minute: '2-digit' 
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'Asia/Manila'
         });
     };
 

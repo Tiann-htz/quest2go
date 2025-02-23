@@ -9,6 +9,20 @@ const handler = async (req, res) => {
   console.log('API handler called:', req.method, req.url);
   const { method } = req;
   const { pathname } = parse(req.url, true);
+  const rateLimit = {};
+
+  const isRateLimited = (userId, endpoint) => {
+    const key = `${userId}-${endpoint}`;
+    const now = Date.now();
+    const lastRequest = rateLimit[key] || 0;
+    
+    if (now - lastRequest < 5000) { // 5 second cooldown
+        return true;
+    }
+    
+    rateLimit[key] = now;
+    return false;
+};
 
   try {
     switch (method) {
@@ -31,6 +45,8 @@ const handler = async (req, res) => {
         return authMiddleware(editChatMessage)(req, res);
       } else if (pathname === '/api/admin/chat/reply') {
         return authMiddleware(handleAdminReply)(req, res);
+      } else if (pathname === '/api/chat/mark-read' && method === 'POST') {
+        return authMiddleware(markMessagesAsRead)(req, res);
       }
         break;
       case 'GET':
@@ -88,6 +104,195 @@ const handler = async (req, res) => {
     res.status(500).json({ error: 'An error occurred while processing your request' });
   }
 };
+
+async function markMessagesAsRead(req, res) {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const decoded = verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+    const { researchId } = req.body;
+
+    // Modified query to only mark messages as read for THIS user's specific messages
+    await query(
+      `UPDATE chats 
+       SET is_read = 0 
+       WHERE research_id = ? 
+       AND sender_id IN (SELECT admin_id FROM admin_accounts)
+       AND replies IS NOT NULL
+       AND adminsender_id IS NOT NULL
+       AND EXISTS (
+         SELECT 1 
+         FROM (SELECT * FROM chats) AS user_msg 
+         WHERE user_msg.research_id = chats.research_id 
+         AND user_msg.sender_id = ?
+         AND user_msg.chat_id = chats.chat_id  
+       )`,
+      [researchId, userId]
+    );
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error marking messages as read:', error);
+    res.status(500).json({ error: 'Failed to mark messages as read' });
+  }
+}
+
+async function getChatRequests(req, res) {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const decoded = verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+
+    // Modified query to count only replies to THIS user's specific messages
+    const chatRequests = await query(
+      `SELECT DISTINCT 
+        r.research_id, 
+        r.title,
+        (SELECT COUNT(*) 
+         FROM chats c2 
+         WHERE c2.research_id = r.research_id 
+         AND c2.is_read = 1
+         AND c2.sender_id IN (SELECT admin_id FROM admin_accounts)
+         AND c2.replies IS NOT NULL
+         AND c2.adminsender_id IS NOT NULL
+         AND EXISTS (
+           SELECT 1 
+           FROM chats user_msg 
+           WHERE user_msg.research_id = r.research_id 
+           AND user_msg.sender_id = ?
+           AND user_msg.chat_id = c2.chat_id  
+         )
+        ) as admin_response_count
+       FROM research_studies r
+       JOIN chats c ON r.research_id = c.research_id
+       WHERE c.sender_id = ?
+       ORDER BY (
+         SELECT MAX(timestamp) 
+         FROM chats 
+         WHERE research_id = r.research_id
+         AND (
+           sender_id = ? 
+           OR (
+             sender_id IN (SELECT admin_id FROM admin_accounts)
+             AND EXISTS (
+               SELECT 1 
+               FROM chats user_msg 
+               WHERE user_msg.research_id = r.research_id 
+               AND user_msg.sender_id = ?
+               AND user_msg.chat_id = chats.chat_id
+             )
+           )
+         )
+       ) DESC`,
+      [userId, userId, userId, userId]
+    );
+
+    // Modified query to count only unread replies to THIS user's messages
+    const [responseCount] = await query(
+      `SELECT COUNT(*) as count
+       FROM chats c
+       WHERE c.sender_id IN (SELECT admin_id FROM admin_accounts)
+       AND c.is_read = 1
+       AND c.replies IS NOT NULL
+       AND c.adminsender_id IS NOT NULL
+       AND EXISTS (
+         SELECT 1 
+         FROM chats user_msg 
+         WHERE user_msg.research_id = c.research_id 
+         AND user_msg.sender_id = ?
+         AND user_msg.chat_id = c.chat_id  
+       )`,
+      [userId]
+    );
+
+    res.status(200).json({ 
+      chatRequests,
+      adminResponses: responseCount.count
+    });
+  } catch (error) {
+    console.error('Error fetching chat requests:', error);
+    res.status(500).json({ error: 'Failed to fetch chat requests' });
+  }
+}
+
+
+
+
+
+
+
+async function handleChatMessage(req, res) {
+  try {
+    console.log('Received chat message request:', req.body);
+    const token = req.cookies.token;
+    
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const decoded = verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+    console.log('User ID from token:', userId);
+
+    const { research_id, message } = req.body;
+    console.log('Looking up research_id:', research_id);
+
+    const [research] = await query(
+      'SELECT * FROM research_studies WHERE research_id = ?',
+      [research_id]
+    );
+    console.log('Found research:', research);
+
+    if (!research) {
+      return res.status(404).json({ error: 'Research study not found' });
+    }
+
+    // Check if an access request already exists
+    const [existingRequest] = await query(
+      'SELECT * FROM research_access_requests WHERE user_id = ? AND research_id = ?',
+      [userId, research_id]
+    );
+
+    // Only create a new access request if one doesn't exist
+    if (!existingRequest) {
+      await query(
+        'INSERT INTO research_access_requests (user_id, research_id) VALUES (?, ?)',
+        [userId, research_id]
+      );
+    }
+
+    // Insert the chat message with corrected query
+    await query(
+      'INSERT INTO chats (sender_id, research_id, message) VALUES (?, ?, ?)',
+      [userId, research_id, message]
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Chat message and access request sent successfully'
+    });
+  } catch (error) {
+    console.error('Detailed error in chat message handler:', error);
+    res.status(500).json({
+      error: 'Failed to send message. Please try again.'
+    });
+  }
+}
+
+
+
+
+
+
+
 
 async function getAdminReplies(req, res) {
   try {
@@ -217,128 +422,11 @@ async function getChatMessages(req, res) {
 }
 
 
-async function getChatRequests(req, res) {
-  try {
-    const token = req.cookies.token;
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const decoded = verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId;
-
-    // Get chat requests for regular users
-    // Now counts responses from admins (where is_read = 1)
-    const chatRequests = await query(
-      `SELECT DISTINCT 
-        r.research_id, 
-        r.title,
-        (SELECT COUNT(*) 
-         FROM chats c2 
-         WHERE c2.research_id = r.research_id 
-         AND c2.is_read = 1
-         AND c2.sender_id IN (SELECT admin_id FROM admin_accounts)
-         AND EXISTS (
-           SELECT 1 FROM chats c3 
-           WHERE c3.research_id = r.research_id 
-           AND c3.sender_id = ?
-         )
-        ) as admin_response_count
-       FROM research_studies r
-       JOIN chats c ON r.research_id = c.research_id
-       WHERE c.sender_id = ?
-       ORDER BY (
-         SELECT MAX(timestamp) 
-         FROM chats 
-         WHERE research_id = r.research_id
-       ) DESC`,
-      [userId, userId]
-    );
-
-    // Calculate total admin responses
-    const [responseCount] = await query(
-      `SELECT COUNT(*) as count
-       FROM chats c
-       WHERE c.sender_id IN (SELECT admin_id FROM admin_accounts)
-       AND c.is_read = 1
-       AND EXISTS (
-         SELECT 1 
-         FROM chats c2 
-         WHERE c2.research_id = c.research_id 
-         AND c2.sender_id = ?
-       )`,
-      [userId]
-    );
-
-    res.status(200).json({ 
-      chatRequests,
-      adminResponses: responseCount.count
-    });
-  } catch (error) {
-    console.error('Error fetching chat requests:', error);
-    res.status(500).json({ error: 'Failed to fetch chat requests' });
-  }
-}
 
 
 
-async function handleChatMessage(req, res) {
-  try {
-    console.log('Received chat message request:', req.body);
-    const token = req.cookies.token;
-    
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
 
-    const decoded = verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId;
-    console.log('User ID from token:', userId);
 
-    const { research_id, message } = req.body;
-    console.log('Looking up research_id:', research_id);
-
-    const [research] = await query(
-      'SELECT * FROM research_studies WHERE research_id = ?',
-      [research_id]
-    );
-    console.log('Found research:', research);
-
-    if (!research) {
-      return res.status(404).json({ error: 'Research study not found' });
-    }
-
-    // Check if an access request already exists
-    const [existingRequest] = await query(
-      'SELECT * FROM research_access_requests WHERE user_id = ? AND research_id = ?',
-      [userId, research_id]
-    );
-
-    // Only create a new access request if one doesn't exist
-    if (!existingRequest) {
-      await query(
-        'INSERT INTO research_access_requests (user_id, research_id) VALUES (?, ?)',
-        [userId, research_id]
-      );
-    }
-
-    // Insert the chat message with corrected query
-    await query(
-      'INSERT INTO chats (sender_id, research_id, message) VALUES (?, ?, ?)',
-      [userId, research_id, message]
-    );
-
-    res.status(200).json({
-      success: true,
-      message: 'Chat message and access request sent successfully'
-    });
-  } catch (error) {
-    console.error('Detailed error in chat message handler:', error);
-    res.status(500).json({
-      error: 'Failed to send message. Please try again.'
-    });
-  }
-}
 
 
 

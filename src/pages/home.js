@@ -32,33 +32,37 @@ export default function Home() {
 const [chatRequests, setChatRequests] = useState([]);
 const [unreadCount, setUnreadCount] = useState(0);
 
-const fetchChatRequests = async () => {
+const updateNotificationCount = async () => {
   try {
     const response = await axios.get('/api/chat/requests');
-    if (response.data.chatRequests) {
+    if (response.data) {
       setChatRequests(response.data.chatRequests);
-      // Only show notifications for admin responses (is_read = 1)
-      setUnreadCount(response.data.adminResponses || 0);
+      setUnreadCount(response.data.adminResponses);
     }
   } catch (error) {
-    console.error('Failed to fetch chat requests:', error);
+    console.error('Failed to update notifications:', error);
   }
 };
 
 useEffect(() => {
   if (user) {
-    fetchChatRequests();
-    // Fetch chat requests every 30 seconds
-    const interval = setInterval(fetchChatRequests, 30000);
-    return () => clearInterval(interval);
+    updateNotificationCount();
+    
+    const interval = setInterval(updateNotificationCount, 60000);
+    
+    return () => {
+      clearInterval(interval);
+    };
   }
-}, [user]);
+}, [user]); 
 
-  const handleOpenChat = (article) => {
-    if (!activeChatWindows.find(chat => chat.id === article.id)) {
-      setActiveChatWindows([...activeChatWindows, article]);
-    }
-  };
+const handleOpenChat = (article) => {
+  if (!activeChatWindows.find(chat => chat.id === article.id)) {
+    setActiveChatWindows([...activeChatWindows, article]);
+    // Update notification count when chat window is opened
+    updateNotificationCount();
+  }
+};
 
   const handleCloseChat = (articleId) => {
     setActiveChatWindows(activeChatWindows.filter(chat => chat.id !== articleId));
@@ -137,19 +141,18 @@ useEffect(() => {
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    if (searchInput.trim()) {
-      router.push({
-        pathname: '/home',
-        query: { search: searchInput.trim() }
-      }, undefined, { shallow: true });
-      fetchSearchResults(searchInput.trim());
-    }
+    // Remove the trim() check so empty searches are allowed
+    router.push({
+      pathname: '/home',
+      query: searchInput.trim() ? { search: searchInput.trim() } : {} // Remove search query if empty
+    }, undefined, { shallow: true });
+    fetchSearchResults(searchInput.trim()); // Empty string will fetch all results
   };
-
+  
   const handleSearchInputChange = (event) => {
     setSearchInput(event.target.value);
   };
-
+  
   const handleSearchKeyPress = (event) => {
     if (event.key === 'Enter') {
       handleSearchSubmit(event);
@@ -296,48 +299,50 @@ useEffect(() => {
 </button>
   
   {showNotifications && (
-    <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg overflow-hidden z-50">
-      <div className="px-4 py-3 border-b border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-900">Chat Requests</h3>
-      </div>
-      
-      <div className="max-h-[400px] overflow-y-auto">
-        {chatRequests.length > 0 ? (
-          chatRequests.map((request) => (
-  <button
-    key={request.research_id}
-    onClick={() => {
-      handleOpenChat({
-        id: request.research_id,
-        title: request.title
-      });
-      setShowNotifications(false);
-    }}
-    className="w-full px-4 py-3 hover:bg-gray-50 flex items-center space-x-3 border-b border-gray-100 last:border-b-0"
-  >
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center space-x-2">
-        <p className="text-sm font-medium text-gray-900 truncate pr-2">
-          {request.title}
-        </p>
-        {request.admin_response_count > 0 && (
-          <span className="flex-shrink-0 inline-block px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-            {request.admin_response_count} response{request.admin_response_count !== 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
+  <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg overflow-hidden z-50">
+    <div className="px-4 py-3 border-b border-gray-200">
+      <h3 className="text-sm font-semibold text-gray-900">Chat Requests</h3>
     </div>
-    <ChevronRightIcon className="flex-shrink-0 h-4 w-4 text-gray-400" />
-  </button>
-          ))
-        ) : (
-          <div className="px-4 py-6 text-sm text-gray-500 text-center">
-            <p>No chat requests</p>
-          </div>
-        )}
-      </div>
+    
+    {/* Set max height based on approximate height of 5 items */}
+    <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+      {chatRequests.length > 0 ? (
+        chatRequests.map((request) => (
+          <button
+            key={request.research_id}
+            onClick={() => {
+              handleOpenChat({
+                id: request.research_id,
+                title: request.title
+              });
+              setShowNotifications(false);
+            }}
+            className="w-full px-4 py-4 hover:bg-gray-50 flex flex-col border-b border-gray-200 last:border-b-0"
+          >
+            <div className="w-full flex items-start justify-between space-x-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900 text-left whitespace-normal break-words pr-2">
+                  {request.title}
+                </p>
+              </div>
+              {request.admin_response_count > 0 && (
+                <div className="flex-shrink-0 mt-0.5">
+                  <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                    {request.admin_response_count} response{request.admin_response_count !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
+            </div>
+          </button>
+        ))
+      ) : (
+        <div className="px-4 py-6 text-sm text-gray-500 text-center">
+          <p>No chat requests</p>
+        </div>
+      )}
     </div>
-  )}
+  </div>
+)}
 </div>
 
   {/* User Account Dropdown - Keep existing code */}
@@ -345,7 +350,7 @@ useEffect(() => {
     <button
       onClick={() => {
         setIsDropdownOpen(!isDropdownOpen);
-        setShowNotifications(false); // Close notifications when opening user dropdown
+        setShowNotifications(false); 
       }}
       className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-full"
     >
@@ -390,7 +395,7 @@ useEffect(() => {
         <main className="p-6">
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
-              {searchInput ? `Search Results for "${searchInput}"` : 'Recent Research Articles'}
+              {searchInput ? `Search Results for "${searchInput}"` : 'Research Articles'}
             </h2>
             {mainContentLoading ? (
               <div className="flex justify-center items-center py-8">
@@ -474,13 +479,14 @@ useEffect(() => {
 
       {/* Chat Windows */}
       {activeChatWindows.map(article => (
-        <ChatWindow
-          key={`chat-${article.id}`}
-          article={article}
-          isOpen={true}
-          onClose={() => handleCloseChat(article.id)}
-        />
-      ))}
+      <ChatWindow
+        key={`chat-${article.id}`}
+        article={article}
+        isOpen={true}
+        onClose={() => handleCloseChat(article.id)}
+        onUpdateNotifications={updateNotificationCount}
+      />
+    ))}
     </div>
   );
 }

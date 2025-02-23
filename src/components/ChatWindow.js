@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const ChatWindow = ({ article, onClose, isOpen }) => {
+const ChatWindow = ({ article, onClose, isOpen, onUpdateNotifications }) => {
     const chatRef = useRef(null);
     const messagesEndRef = useRef(null);
 
@@ -64,7 +64,7 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
                 });
             } else {
                 const windowWidth = window.innerWidth;
-                const chatWidth = 320;
+                const chatWidth = 400; 
                 const initialX = (windowWidth - chatWidth) / 2;
                 const initialY = window.innerHeight - chatRef.current.offsetHeight - 40;
                 setPosition({ x: initialX, y: initialY });
@@ -132,22 +132,50 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
         });
     };
 
+    useEffect(() => {
+        const markAsRead = async () => {
+          if (isOpen && article?.id) {
+            try {
+              await axios.post('/api/chat/mark-read', {
+                researchId: article.id
+              }, {
+                withCredentials: true
+              });
+              
+              // Call the notification update function
+              if (onUpdateNotifications) {
+                onUpdateNotifications();
+              }
+            } catch (error) {
+              console.error('Failed to mark messages as read:', error);
+            }
+          }
+        };
+    
+        markAsRead();
+      }, [isOpen, article?.id, onUpdateNotifications]);
+
+      
     // API functions
     const fetchMessages = async () => {
         try {
-            const response = await axios.get(`/api/chat/messages/${article.id}`, {
-                withCredentials: true
-            });
-            if (response.data.messages) {
-                // Filter messages before setting them
-                const filteredMessages = filterValidMessages(response.data.messages);
-                setMessages(filteredMessages);
+          const response = await axios.get(`/api/chat/messages/${article.id}`, {
+            withCredentials: true
+          });
+          if (response.data.messages) {
+            const filteredMessages = filterValidMessages(response.data.messages);
+            setMessages(filteredMessages);
+            
+            // Update notification count after receiving new messages
+            if (onUpdateNotifications) {
+              onUpdateNotifications();
             }
+          }
         } catch (err) {
-            console.error('Failed to fetch messages:', err);
-            setError('Failed to load messages');
+          console.error('Failed to fetch messages:', err);
+          setError('Failed to load messages');
         }
-    };
+      };
 
     // New function to fetch admin replies
     const fetchAdminReplies = async () => {
@@ -165,7 +193,7 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
             }
         } catch (err) {
             console.error('Failed to fetch admin replies:', err);
-            // Not setting error here as this is secondary content
+           
         }
     };
 
@@ -179,7 +207,7 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
             const response = await axios.post('/api/chat/send', {
                 research_id: article.id,
                 message: message.trim(),
-                timestamp: new Date().toISOString() // This will be converted to UTC in the database
+                timestamp: new Date().toISOString() 
             }, {
                 withCredentials: true,
                 headers: {
@@ -391,7 +419,7 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
                 ref={chatRef}
                 style={getChatWindowStyles()}
                 className={`bg-white shadow-xl z-50 flex flex-col ${
-                    isMobile ? 'w-full' : 'w-80'
+                    isMobile ? 'w-full' : 'w-96'  
                 }`}
                 onMouseDown={!isMobile ? handleMouseDown : undefined}
             >
@@ -410,7 +438,7 @@ const ChatWindow = ({ article, onClose, isOpen }) => {
                 </div>
                 
                 <div className={`p-4 overflow-y-auto bg-gray-50 ${
-                    isMobile ? 'flex-grow' : 'h-80'
+                    isMobile ? 'flex-grow' : 'h-96' 
                 }`}>
                     {error && (
                         <div className="mb-4 p-2 bg-red-100 text-red-600 rounded-lg text-sm">

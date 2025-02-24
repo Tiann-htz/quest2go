@@ -1210,43 +1210,42 @@ async function handleLogin(req, res) {
 
 async function handleLogout(req, res) {
   try {
-    // Get the token from cookies
-    const token = req.cookies.token;
+    // Get the user token from cookies
+    const userToken = req.cookies.userToken;
     
-    if (!token) {
-      // If no token exists, just clear the cookie and return success
-      res.setHeader('Set-Cookie', serialize('token', '', {
+    if (userToken) {
+      try {
+        // Verify and decode the token to get userId
+        const decoded = verify(userToken, process.env.JWT_SECRET);
+        
+        // Update last activity when logging out
+        await query(
+          'UPDATE user SET last_activity = CURRENT_TIMESTAMP WHERE user_id = ?',
+          [decoded.userId]
+        );
+      } catch (tokenError) {
+        console.error('Token verification error:', tokenError);
+        // If token verification fails, just proceed with logout
+      }
+    }
+
+    // Clear both cookies regardless of token verification
+    res.setHeader('Set-Cookie', [
+      serialize('userToken', '', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
         maxAge: -1,
         path: '/'
-      }));
-      return res.status(200).json({ message: 'Logged out successfully' });
-    }
-
-    try {
-      // Verify and decode the token to get userId
-      const decoded = verify(token, process.env.JWT_SECRET);
-      
-      // Update last activity when logging out
-      await query(
-        'UPDATE user SET last_activity = CURRENT_TIMESTAMP WHERE user_id = ?',
-        [decoded.userId]
-      );
-    } catch (tokenError) {
-      console.error('Token verification error:', tokenError);
-      // If token verification fails, just proceed with logout
-    }
-
-    // Clear the cookie regardless of token verification
-    res.setHeader('Set-Cookie', serialize('token', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: -1,
-      path: '/'
-    }));
+      }),
+      serialize('adminToken', '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: -1,
+        path: '/'
+      })
+    ]);
 
     res.status(200).json({ message: 'Logged out successfully' });
   } catch (error) {

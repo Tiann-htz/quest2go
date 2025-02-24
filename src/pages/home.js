@@ -33,19 +33,29 @@ const [chatRequests, setChatRequests] = useState([]);
 const [unreadCount, setUnreadCount] = useState(0);
 
 const updateNotificationCount = async () => {
+  if (!user) return; // Don't make the request if there's no user
+
   try {
-    const response = await axios.get('/api/chat/requests');
+    const response = await axios.get('/api/chat/requests', {
+      withCredentials: true 
+    });
+    
     if (response.data) {
       setChatRequests(response.data.chatRequests);
-      setUnreadCount(response.data.adminResponses);
+      setUnreadCount(response.data.adminResponses || 0);
     }
   } catch (error) {
-    console.error('Failed to update notifications:', error);
+    if (error.response?.status === 401) {
+      console.log('User not authenticated, please log in');
+      // Optionally redirect to login or handle differently
+    } else {
+      console.error('Failed to update notifications:', error);
+    }
   }
 };
 
 useEffect(() => {
-  if (user) {
+  if (user && !isLoading) { // Only run if user is authenticated and loading is complete
     updateNotificationCount();
     
     const interval = setInterval(updateNotificationCount, 60000);
@@ -54,7 +64,7 @@ useEffect(() => {
       clearInterval(interval);
     };
   }
-}, [user]); 
+}, [user, isLoading]);
 
 const handleOpenChat = (article) => {
   if (!activeChatWindows.find(chat => chat.id === article.id)) {

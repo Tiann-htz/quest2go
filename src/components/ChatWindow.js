@@ -142,7 +142,6 @@ const ChatWindow = ({ article, onClose, isOpen, onUpdateNotifications }) => {
                 withCredentials: true
               });
               
-              // Call the notification update function
               if (onUpdateNotifications) {
                 onUpdateNotifications();
               }
@@ -151,7 +150,7 @@ const ChatWindow = ({ article, onClose, isOpen, onUpdateNotifications }) => {
             }
           }
         };
-    
+      
         markAsRead();
       }, [isOpen, article?.id, onUpdateNotifications]);
 
@@ -166,7 +165,6 @@ const ChatWindow = ({ article, onClose, isOpen, onUpdateNotifications }) => {
             const filteredMessages = filterValidMessages(response.data.messages);
             setMessages(filteredMessages);
             
-            // Update notification count after receiving new messages
             if (onUpdateNotifications) {
               onUpdateNotifications();
             }
@@ -180,24 +178,22 @@ const ChatWindow = ({ article, onClose, isOpen, onUpdateNotifications }) => {
     // New function to fetch admin replies
     const fetchAdminReplies = async () => {
         try {
-            const response = await axios.get(`/api/chat/admin-replies/${article.id}`, {
-                withCredentials: true
+          const response = await axios.get(`/api/chat/admin-replies/${article.id}`, {
+            withCredentials: true
+          });
+          if (response.data.replies) {
+            const repliesMap = {};
+            response.data.replies.forEach(reply => {
+              repliesMap[reply.chat_id] = reply.replies;
             });
-            if (response.data.replies) {
-                // Convert array to object with message ID as key
-                const repliesMap = {};
-                response.data.replies.forEach(reply => {
-                    repliesMap[reply.chat_id] = reply.replies;
-                });
-                setAdminReplies(repliesMap);
-            }
+            setAdminReplies(repliesMap);
+          }
         } catch (err) {
-            console.error('Failed to fetch admin replies:', err);
-           
+          console.error('Failed to fetch admin replies:', err);
         }
-    };
+      };
 
-    const handleSendMessage = async () => {
+      const handleSendMessage = async () => {
         if (!message.trim()) return;
         
         setIsSending(true);
@@ -232,39 +228,40 @@ const ChatWindow = ({ article, onClose, isOpen, onUpdateNotifications }) => {
         }
     };
 
-    const handleEditMessage = async (messageId, newText) => {
+      const handleEditMessage = async (messageId, newText) => {
         try {
-            await axios.post('/api/chat/edit', {
-                chatId: messageId,
-                message: newText
-            }, {
-                withCredentials: true
-            });
-            
-            setMessages(messages.map(msg => 
-                msg.id === messageId ? { ...msg, message: newText } : msg
-            ));
-            setEditingMessage(null);
+          await axios.post('/api/chat/edit', {
+            chatId: messageId,
+            message: newText
+          }, {
+            withCredentials: true
+          });
+          
+          setMessages(messages.map(msg => 
+            msg.id === messageId ? { ...msg, message: newText } : msg
+          ));
+          setEditingMessage(null);
         } catch (error) {
-            setError('Failed to edit message');
-            console.error('Edit error:', error);
+          setError('Failed to edit message');
+          console.error('Edit error:', error);
         }
-    };
-
-    const handleDeleteMessage = async (messageId) => {
+      };
+      
+      const handleDeleteMessage = async (messageId) => {
         try {
-            await axios.delete(`/api/chat/message/${messageId}`, {
-                withCredentials: true
-            });
-            
-            setMessages(messages.filter(msg => msg.id !== messageId));
-            setDeleteConfirmOpen(false);
-            setMessageToDelete(null);
+          await axios.delete(`/api/chat/message/${messageId}`, {
+            withCredentials: true
+          });
+          
+          setMessages(messages.filter(msg => msg.id !== messageId));
+          setDeleteConfirmOpen(false);
+          setMessageToDelete(null);
         } catch (error) {
-            setError('Failed to delete message');
-            console.error('Delete error:', error);
+          setError('Failed to delete message');
+          console.error('Delete error:', error);
         }
-    };
+      };
+      
 
     const handleKeyPress = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {

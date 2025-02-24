@@ -9,21 +9,7 @@ const handler = async (req, res) => {
   console.log('API handler called:', req.method, req.url);
   const { method } = req;
   const { pathname } = parse(req.url, true);
-  const rateLimit = {};
-
-  const isRateLimited = (userId, endpoint) => {
-    const key = `${userId}-${endpoint}`;
-    const now = Date.now();
-    const lastRequest = rateLimit[key] || 0;
-    
-    if (now - lastRequest < 5000) { // 5 second cooldown
-        return true;
-    }
-    
-    rateLimit[key] = now;
-    return false;
-};
-
+ 
   try {
     switch (method) {
       case 'POST':
@@ -107,16 +93,9 @@ const handler = async (req, res) => {
 
 async function markMessagesAsRead(req, res) {
   try {
-    const token = req.cookies.token;
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const decoded = verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId;
+    const userId = req.userId;
     const { researchId } = req.body;
 
-    // Modified query to only mark messages as read for THIS user's specific messages
     await query(
       `UPDATE chats 
        SET is_read = 0 
@@ -129,7 +108,7 @@ async function markMessagesAsRead(req, res) {
          FROM (SELECT * FROM chats) AS user_msg 
          WHERE user_msg.research_id = chats.research_id 
          AND user_msg.sender_id = ?
-         AND user_msg.chat_id = chats.chat_id  
+         AND user_msg.chat_id = chats.chat_id
        )`,
       [researchId, userId]
     );
@@ -143,13 +122,7 @@ async function markMessagesAsRead(req, res) {
 
 async function getChatRequests(req, res) {
   try {
-    const token = req.cookies.token;
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const decoded = verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId;
+    const userId = req.userId; // This comes from authMiddleware
 
     // Modified query to count only replies to THIS user's specific messages
     const chatRequests = await query(
@@ -231,16 +204,7 @@ async function getChatRequests(req, res) {
 
 async function handleChatMessage(req, res) {
   try {
-    console.log('Received chat message request:', req.body);
-    const token = req.cookies.token;
-    
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const decoded = verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId;
-    console.log('User ID from token:', userId);
+    const userId = req.userId; 
 
     const { research_id, message } = req.body;
     console.log('Looking up research_id:', research_id);
@@ -296,30 +260,27 @@ async function handleChatMessage(req, res) {
 
 async function getAdminReplies(req, res) {
   try {
-    const token = req.cookies.token;
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const decoded = verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId;
-    
-    // Extract research_id from URL
+    const userId = req.userId;
     const research_id = req.url.split('/').pop();
-    
+
     if (!research_id || research_id === 'undefined') {
       return res.status(400).json({ error: 'Research ID is required' });
     }
 
-    // Get only the chat_id and replies - exclude the message field
     const adminReplies = await query(
       `SELECT c.chat_id, c.replies
        FROM chats c
-       WHERE c.sender_id = ?
-       AND c.research_id = ?
+       WHERE c.research_id = ?
+       AND EXISTS (
+         SELECT 1 
+         FROM chats user_msg 
+         WHERE user_msg.research_id = c.research_id 
+         AND user_msg.sender_id = ?
+         AND user_msg.chat_id = c.chat_id
+       )
        AND c.replies IS NOT NULL
        AND c.replies != ''`,
-      [userId, research_id]
+      [research_id, userId]
     );
 
     res.status(200).json({ replies: adminReplies });
@@ -332,24 +293,16 @@ async function getAdminReplies(req, res) {
 
 async function getChatMessages(req, res) {
   try {
-    const token = req.cookies.token;
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const decoded = verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId;
-    const isAdmin = decoded.isAdmin || false;
-    
+    const userId = req.userId;
+    const isAdmin = req.isAdmin;
     const research_id = req.url.split('/').pop();
-    
+
     if (!research_id || research_id === 'undefined') {
       return res.status(400).json({ error: 'Research ID is required' });
     }
 
     let messages;
     if (isAdmin) {
-      // Admin can see all messages for the research study
       messages = await query(
         `SELECT c.*, 
           CASE WHEN c.sender_id = ? THEN true ELSE false END as isCurrentUser,
@@ -357,12 +310,12 @@ async function getChatMessages(req, res) {
          FROM chats c
          JOIN user u ON c.sender_id = u.user_id
          WHERE c.research_id = ?
-         AND ((c.message IS NOT NULL AND c.message != '') OR (c.replies IS NOT NULL AND c.replies != ''))
+         AND ((c.message IS NOT NULL AND c.message != '') 
+           OR (c.replies IS NOT NULL AND c.replies != ''))
          ORDER BY c.timestamp ASC`,
         [userId, research_id]
       );
     } else {
-      // Regular users only see their own messages and admin replies
       messages = await query(
         `WITH UserMessages AS (
           SELECT 
@@ -391,7 +344,13 @@ async function getChatMessages(req, res) {
           FROM chats c
           JOIN user u ON c.sender_id = u.user_id
           WHERE c.research_id = ?
-            AND c.sender_id = ?
+            AND EXISTS (
+              SELECT 1 
+              FROM chats user_msg 
+              WHERE user_msg.research_id = c.research_id 
+              AND user_msg.sender_id = ?
+              AND user_msg.chat_id = c.chat_id
+            )
             AND c.replies IS NOT NULL 
             AND c.replies != ''
             AND c.adminsender_id IS NOT NULL
@@ -404,15 +363,17 @@ async function getChatMessages(req, res) {
       );
     }
 
-    const formattedMessages = messages.map(msg => ({
-      id: msg.chat_id,
-      message: msg.message || null, 
-      timestamp: msg.message_timestamp || msg.timestamp,
-      isCurrentUser: msg.isCurrentUser,
-      senderName: `${msg.first_name} ${msg.last_name}`,
-      reply: msg.replies,
-      replyTimestamp: msg.reply_timestamp
-    })).filter(msg => msg.message || msg.reply); 
+    const formattedMessages = messages
+      .map(msg => ({
+        id: msg.chat_id,
+        message: msg.message || null,
+        timestamp: msg.message_timestamp || msg.timestamp,
+        isCurrentUser: msg.isCurrentUser,
+        senderName: `${msg.first_name} ${msg.last_name}`,
+        reply: msg.replies,
+        replyTimestamp: msg.reply_timestamp
+      }))
+      .filter(msg => msg.message || msg.reply);
 
     res.status(200).json({ messages: formattedMessages });
   } catch (error) {
@@ -434,17 +395,9 @@ async function getChatMessages(req, res) {
 
 async function editChatMessage(req, res) {
   try {
-    const token = req.cookies.token;
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const decoded = verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId;
-    
+    const userId = req.userId;
     const { chatId, message } = req.body;
 
-    // Verify the message belongs to the user
     const [existingMessage] = await query(
       'SELECT * FROM chats WHERE chat_id = ? AND sender_id = ?',
       [chatId, userId]
@@ -466,19 +419,12 @@ async function editChatMessage(req, res) {
   }
 }
 
+// Update delete message handler
 async function deleteChatMessage(req, res) {
   try {
-    const token = req.cookies.token;
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const decoded = verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId;
-    
+    const userId = req.userId;
     const chatId = req.url.split('/').pop();
 
-    // Verify the message belongs to the user
     const [existingMessage] = await query(
       'SELECT * FROM chats WHERE chat_id = ? AND sender_id = ?',
       [chatId, userId]
@@ -1075,13 +1021,24 @@ async function handleAdminLogin(req, res) {
       { expiresIn: '24h' }
     );
 
-    res.setHeader('Set-Cookie', serialize('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 86400,
-      path: '/'
-    }));
+    // Set admin token specifically
+    res.setHeader('Set-Cookie', [
+      serialize('adminToken', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 86400,
+        path: '/'
+      }),
+      // Clear any existing user token
+      serialize('userToken', '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: -1,
+        path: '/'
+      })
+    ]);
 
     res.status(200).json({
       message: 'Admin login successful',
@@ -1205,19 +1162,31 @@ async function handleLogin(req, res) {
       {
         userId: user.user_id,
         email: user.email,
-        userType: user.user_type
+        userType: user.user_type,
+        isAdmin: false
       },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    res.setHeader('Set-Cookie', serialize('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 86400,
-      path: '/'
-    }));
+    // Set user token specifically
+    res.setHeader('Set-Cookie', [
+      serialize('userToken', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 86400,
+        path: '/'
+      }),
+      // Clear any existing admin token
+      serialize('adminToken', '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: -1,
+        path: '/'
+      })
+    ]);
 
     const userData = {
       id: user.user_id,

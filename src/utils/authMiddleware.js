@@ -3,24 +3,34 @@ import { verify } from 'jsonwebtoken';
 export function authMiddleware(handler) {
   return async (req, res) => {
     try {
-      const token = req.cookies.token;
-
-      if (!token) {
-        return res.status(401).json({ error: 'Authentication required' });
-      }
-
-      const decoded = verify(token, process.env.JWT_SECRET);
-      req.userId = decoded.userId;
-      req.isAdmin = decoded.isAdmin || false;
+      // Check both tokens
+      const userToken = req.cookies.userToken;
+      const adminToken = req.cookies.adminToken;
       
-      // Add adminId to request if it exists
-      if (decoded.isAdmin && decoded.adminId) {
+      // For admin routes
+      if (req.url.startsWith('/api/admin')) {
+        if (!adminToken) {
+          return res.status(401).json({ error: 'Admin authentication required' });
+        }
+        const decoded = verify(adminToken, process.env.JWT_SECRET);
+        if (!decoded.isAdmin) {
+          return res.status(403).json({ error: 'Admin access required' });
+        }
+        req.userId = decoded.userId;
         req.adminId = decoded.adminId;
-      }
-
-      // For admin-only routes, check if user is admin
-      if (req.url.startsWith('/api/admin') && !decoded.isAdmin) {
-        return res.status(403).json({ error: 'Admin access required' });
+        req.isAdmin = true;
+      } 
+      // For user routes
+      else {
+        if (!userToken) {
+          return res.status(401).json({ error: 'Authentication required' });
+        }
+        const decoded = verify(userToken, process.env.JWT_SECRET);
+        if (decoded.isAdmin) {
+          return res.status(403).json({ error: 'User access required' });
+        }
+        req.userId = decoded.userId;
+        req.isAdmin = false;
       }
 
       return handler(req, res);

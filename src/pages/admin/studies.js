@@ -248,10 +248,6 @@ const [admin, setAdmin] = useState(null);
       
       {/* Add this new section for notifications and user profile */}
       <div className="flex items-center space-x-6">
-        <button className="text-gray-500 hover:text-gray-700 relative">
-          <Bell className="w-6 h-6" />
-          <span className="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
-        </button>
 
         {/* Admin Profile Dropdown */}
         <div className="relative">

@@ -64,6 +64,10 @@ const handler = async (req, res) => {
           return authMiddleware(getStudyMessages)(req, res);
         } else if (pathname.startsWith('/api/chat/admin-replies/')) {
           return authMiddleware(getAdminReplies)(req, res);
+        } else if (pathname === '/api/admin/stats') {
+          return authMiddleware(getStats)(req, res);
+        } else if (pathname === '/api/admin/institutions') {
+          return authMiddleware(getInstitutions)(req, res);
         }
         
         break;
@@ -91,6 +95,95 @@ const handler = async (req, res) => {
   }
 };
 
+async function getInstitutions(req, res) {
+  try {
+    // Get distinct institutions from research_studies
+    const institutionsResult = await query(
+      'SELECT DISTINCT institution FROM research_studies'
+    );
+    
+    // Map institution names to standard formats for logo matching
+    const institutions = institutionsResult.map(item => {
+      const institutionName = item.institution;
+      let logoKey = '';
+      
+      // Map full names to logo file names
+      if (institutionName.toLowerCase().includes('holycross') || 
+          institutionName.toLowerCase().includes('hcdc')) {
+        logoKey = 'hcdc';
+      } else if (institutionName.toLowerCase().includes('university of immaculate conception') || 
+                institutionName.toLowerCase().includes('uic')) {
+        logoKey = 'uic';
+      } else if (institutionName.toLowerCase().includes('university of mindanao') || 
+                institutionName.toLowerCase().includes('um')) {
+        logoKey = 'um';
+      } else if (institutionName.toLowerCase().includes('university of southeastern philippines') || 
+                institutionName.toLowerCase().includes('usep')) {
+        logoKey = 'usep';
+      } else {
+        // Default case - use first part of name as key
+        logoKey = institutionName.split(' ')[0].toLowerCase();
+      }
+      
+      return {
+        name: institutionName,
+        logoPath: `/Institution/${logoKey}.png`,
+        researchCount: 0 // Will be populated next
+      };
+    });
+    
+    // Get count of research studies for each institution
+    for (let i = 0; i < institutions.length; i++) {
+      const countResult = await query(
+        'SELECT COUNT(*) as count FROM research_studies WHERE institution = ?',
+        [institutions[i].name]
+      );
+      institutions[i].researchCount = countResult[0].count;
+    }
+    
+    res.status(200).json({ institutions });
+  } catch (error) {
+    console.error('Error fetching institutions:', error);
+    res.status(500).json({ error: 'Error fetching institutions' });
+  }
+}
+
+async function getStats(req, res) {
+  try {
+    // Get total users count
+    const totalUsersResult = await query(
+      'SELECT COUNT(*) as count FROM user'
+    );
+    
+    // Get count of students
+    const studentsResult = await query(
+      'SELECT COUNT(*) as count FROM students'
+    );
+    
+    // Get count of teachers
+    const teachersResult = await query(
+      'SELECT COUNT(*) as count FROM teachers'
+    );
+    
+    // Get count of researchers
+    const researchersResult = await query(
+      'SELECT COUNT(*) as count FROM researchers'
+    );
+    
+    res.status(200).json({
+      totalUsers: totalUsersResult[0].count,
+      totalStudents: studentsResult[0].count,
+      totalTeachers: teachersResult[0].count,
+      totalResearchers: researchersResult[0].count
+    });
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+    res.status(500).json({ error: 'Error fetching user statistics' });
+  }
+}
+
+
+//Users side
 async function markMessagesAsRead(req, res) {
   try {
     const userId = req.userId;
@@ -196,12 +289,6 @@ async function getChatRequests(req, res) {
   }
 }
 
-
-
-
-
-
-
 async function handleChatMessage(req, res) {
   try {
     const userId = req.userId; 
@@ -257,7 +344,7 @@ async function handleChatMessage(req, res) {
 
 
 
-
+//Users side
 async function getAdminReplies(req, res) {
   try {
     const userId = req.userId;
@@ -392,7 +479,7 @@ async function getChatMessages(req, res) {
 
 
 
-
+//Users side
 async function editChatMessage(req, res) {
   try {
     const userId = req.userId;

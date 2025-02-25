@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import Head from 'next/head';
+import Image from 'next/image'; 
 import AdminSidebar from './AdminSidebar';
 import { 
   User, 
@@ -9,7 +10,12 @@ import {
   ChevronDown,
   Settings,
   LogOut,
-  Menu
+  Menu,
+  Users,
+  GraduationCap,
+  BookOpen,
+  Microscope,
+  Building
 } from 'lucide-react';
 
 export default function AdminPanel() {
@@ -17,11 +23,13 @@ export default function AdminPanel() {
   const [admin, setAdmin] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [users, setUsers] = useState([]);
+  const [institutions, setInstitutions] = useState([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [stats, setStats] = useState({
     totalUsers: 0,
-    totalEducators: 0,
+    totalStudents: 0,
+    totalTeachers: 0,
     totalResearchers: 0
   });
 
@@ -44,6 +52,7 @@ export default function AdminPanel() {
           setAdmin(response.data.user);
           fetchUsers();
           fetchStats();
+          fetchInstitutions(); // New function to fetch institutions
         } else {
           router.push('/login');
         }
@@ -73,6 +82,16 @@ export default function AdminPanel() {
       setStats(response.data);
     } catch (error) {
       console.error('Error fetching stats:', error);
+    }
+  };
+
+  // New function to fetch institutions
+  const fetchInstitutions = async () => {
+    try {
+      const response = await axios.get('/api/admin/institutions');
+      setInstitutions(response.data.institutions);
+    } catch (error) {
+      console.error('Error fetching institutions:', error);
     }
   };
 
@@ -142,12 +161,6 @@ export default function AdminPanel() {
 
                 {/* Right-aligned items - Always on right for both mobile and desktop */}
                 <div className="flex items-center ml-auto space-x-6">
-
-                  <button className="text-gray-500 hover:text-gray-700 relative">
-                    <Bell className="w-6 h-6" />
-                    <span className="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
-                  </button>
-
                   {/* Admin Profile Dropdown */}
                   <div className="relative">
                     <button 
@@ -197,69 +210,108 @@ export default function AdminPanel() {
           <div className="flex-1 overflow-auto">
             <main className="p-6">
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-medium text-gray-900">Total Users</h3>
-                  <p className="text-3xl font-bold text-indigo-600">{stats.totalUsers}</p>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                {/* Total Users Card */}
+                <div className="bg-white rounded-lg shadow-lg overflow-hidden transform transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+                  <div className="px-6 py-5 border-b border-gray-100">
+                    <div className="flex items-center">
+                      <div className="bg-indigo-100 p-3 rounded-full mr-4">
+                        <Users className="w-6 h-6 text-indigo-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-800">Total Users</h3>
+                    </div>
+                  </div>
+                  <div className="px-6 py-4 bg-gradient-to-r from-indigo-50 to-white">
+                    <p className="text-3xl font-bold text-indigo-600">{stats.totalUsers}</p>
+                    <p className="text-xs text-indigo-500 mt-1 uppercase tracking-wider">Registered accounts</p>
+                  </div>
                 </div>
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-medium text-gray-900">Educators</h3>
-                  <p className="text-3xl font-bold text-green-600">{stats.totalEducators}</p>
+                
+                {/* Students Card */}
+                <div className="bg-white rounded-lg shadow-lg overflow-hidden transform transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+                  <div className="px-6 py-5 border-b border-gray-100">
+                    <div className="flex items-center">
+                      <div className="bg-purple-100 p-3 rounded-full mr-4">
+                        <GraduationCap className="w-6 h-6 text-purple-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-800">Students</h3>
+                    </div>
+                  </div>
+                  <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-white">
+                    <p className="text-3xl font-bold text-purple-600">{stats.totalStudents}</p>
+                    <p className="text-xs text-purple-500 mt-1 uppercase tracking-wider">Enrolled students</p>
+                  </div>
                 </div>
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-medium text-gray-900">Researchers</h3>
-                  <p className="text-3xl font-bold text-blue-600">{stats.totalResearchers}</p>
+                
+                {/* Teachers Card */}
+                <div className="bg-white rounded-lg shadow-lg overflow-hidden transform transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+                  <div className="px-6 py-5 border-b border-gray-100">
+                    <div className="flex items-center">
+                      <div className="bg-blue-100 p-3 rounded-full mr-4">
+                        <BookOpen className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-800">Teachers</h3>
+                    </div>
+                  </div>
+                  <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-white">
+                    <p className="text-3xl font-bold text-blue-600">{stats.totalTeachers}</p>
+                    <p className="text-xs text-blue-500 mt-1 uppercase tracking-wider">Teaching faculty</p>
+                  </div>
+                </div>
+                
+                {/* Researchers Card */}
+                <div className="bg-white rounded-lg shadow-lg overflow-hidden transform transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+                  <div className="px-6 py-5 border-b border-gray-100">
+                    <div className="flex items-center">
+                      <div className="bg-green-100 p-3 rounded-full mr-4">
+                        <Microscope className="w-6 h-6 text-green-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-800">Researchers</h3>
+                    </div>
+                  </div>
+                  <div className="px-6 py-4 bg-gradient-to-r from-green-50 to-white">
+                    <p className="text-3xl font-bold text-green-600">{stats.totalResearchers}</p>
+                    <p className="text-xs text-green-500 mt-1 uppercase tracking-wider">Active researchers</p>
+                  </div>
                 </div>
               </div>
 
-              {/* Users Table */}
-              <div className="bg-white shadow rounded-lg">
-                <div className="px-4 py-5 sm:px-6">
-                  <h2 className="text-lg font-medium text-gray-900">Registered Users</h2>
+              {/* New Institutions Section */}
+              <div className="bg-white shadow-lg rounded-lg mb-8">
+                <div className="px-6 py-5 border-b border-gray-200">
+                  <div className="flex items-center">
+                    <div className="bg-amber-100 p-3 rounded-full mr-4">
+                      <Building className="w-6 h-6 text-amber-600" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-gray-800">Partner Institutions</h2>
+                  </div>
                 </div>
-                <div className="border-t border-gray-200">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Name
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Email
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Type
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {users.map((user) => (
-                          <tr key={user.user_id}>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              {user.first_name} {user.last_name}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              {user.email}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              {user.user_type}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <button className="text-indigo-600 hover:text-indigo-900 mr-4">
-                                Edit
-                              </button>
-                              <button className="text-red-600 hover:text-red-900">
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+
+                <div className="p-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    {institutions.map((institution, index) => (
+                      <div 
+                        key={index}
+                        className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 flex flex-col items-center justify-center text-center transform transition-all duration-300 hover:shadow-md hover:-translate-y-1"
+                      >
+                        <div className="h-24 w-24 relative mb-3 flex items-center justify-center">
+                          <Image
+                            src={institution.logoPath}
+                            alt={institution.name}
+                            width={96}
+                            height={96}
+                            className="object-contain"
+                            onError={(e) => {
+                              e.target.src = "/Institution/default.png";
+                            }}
+                          />
+                        </div>
+                        <h3 className="font-medium text-gray-800 mb-1 text-sm">{institution.name}</h3>
+                        <div className="bg-amber-100 text-amber-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                          {institution.researchCount} Studies
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

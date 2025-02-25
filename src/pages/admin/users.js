@@ -113,26 +113,14 @@ export default function Users() {
                     <div className="flex-1 flex">
                       <div className="w-full flex md:ml-0">
                         <div className="relative w-full text-gray-400 focus-within:text-gray-600">
-                          <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
-                            <Search className="h-5 w-5" />
-                          </div>
-                          <input
-                            type="text"
-                            className="block w-full h-full pl-8 pr-3 py-2 border-transparent text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-0 focus:border-transparent sm:text-sm"
-                            placeholder="Search users..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                          />
+                          
                         </div>
                       </div>
                     </div>
   
                     {/* Right-aligned items */}
                     <div className="flex items-center space-x-6">
-                      <button className="text-gray-500 hover:text-gray-700 relative">
-                        <Bell className="w-6 h-6" />
-                        <span className="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
-                      </button>
+                     
   
                       {/* Admin Profile Dropdown */}
                       <div className="relative">

@@ -1108,7 +1108,7 @@ async function handleAdminLogin(req, res) {
       { expiresIn: '24h' }
     );
 
-    // Set admin token specifically
+    // Set admin token specifically - MODIFIED: Don't clear userToken
     res.setHeader('Set-Cookie', [
       serialize('adminToken', token, {
         httpOnly: true,
@@ -1116,15 +1116,8 @@ async function handleAdminLogin(req, res) {
         sameSite: 'strict',
         maxAge: 86400,
         path: '/'
-      }),
-      // Clear any existing user token
-      serialize('userToken', '', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: -1,
-        path: '/'
       })
+      // REMOVED: The line that clears the userToken
     ]);
 
     res.status(200).json({
@@ -1256,7 +1249,7 @@ async function handleLogin(req, res) {
       { expiresIn: '24h' }
     );
 
-    // Set user token specifically
+    // MODIFIED: Set user token without clearing admin token
     res.setHeader('Set-Cookie', [
       serialize('userToken', token, {
         httpOnly: true,
@@ -1264,15 +1257,8 @@ async function handleLogin(req, res) {
         sameSite: 'strict',
         maxAge: 86400,
         path: '/'
-      }),
-      // Clear any existing admin token
-      serialize('adminToken', '', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: -1,
-        path: '/'
       })
+      // REMOVED: The line that clears the adminToken
     ]);
 
     const userData = {
@@ -1297,10 +1283,20 @@ async function handleLogin(req, res) {
 
 async function handleLogout(req, res) {
   try {
+    // New parameter to determine which account to log out
+    const { logoutType } = req.body; // Can be 'user', 'admin', or 'all'
+    
+    // Default to logging out all accounts if not specified
+    const type = logoutType || 'all';
+    
+    let cookies = [];
+    
     // Get the user token from cookies
     const userToken = req.cookies.userToken;
+    const adminToken = req.cookies.adminToken;
     
-    if (userToken) {
+    // Update last activity for user if logging out user account
+    if ((type === 'user' || type === 'all') && userToken) {
       try {
         // Verify and decode the token to get userId
         const decoded = verify(userToken, process.env.JWT_SECRET);
@@ -1316,24 +1312,32 @@ async function handleLogout(req, res) {
       }
     }
 
-    // Clear both cookies regardless of token verification
-    res.setHeader('Set-Cookie', [
-      serialize('userToken', '', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: -1,
-        path: '/'
-      }),
-      serialize('adminToken', '', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: -1,
-        path: '/'
-      })
-    ]);
+    // Add cookies to clear based on logout type
+    if (type === 'user' || type === 'all') {
+      cookies.push(
+        serialize('userToken', '', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict',
+          maxAge: -1,
+          path: '/'
+        })
+      );
+    }
+    
+    if (type === 'admin' || type === 'all') {
+      cookies.push(
+        serialize('adminToken', '', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict',
+          maxAge: -1,
+          path: '/'
+        })
+      );
+    }
 
+    res.setHeader('Set-Cookie', cookies);
     res.status(200).json({ message: 'Logged out successfully' });
   } catch (error) {
     console.error('Logout error:', error);

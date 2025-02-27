@@ -23,6 +23,10 @@ export function authMiddleware(handler) {
       // For user routes
       else {
         if (!userToken) {
+          // MODIFIED: Check if adminToken exists but we're trying to access user routes
+          if (adminToken) {
+            return res.status(403).json({ error: 'User access required, please login as user' });
+          }
           return res.status(401).json({ error: 'Authentication required' });
         }
         const decoded = verify(userToken, process.env.JWT_SECRET);

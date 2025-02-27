@@ -251,21 +251,21 @@ const [admin, setAdmin] = useState(null);
 
         {/* Admin Profile Dropdown */}
         <div className="relative">
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsDropdownOpen(!isDropdownOpen);
-            }}
-            className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-100"
-          >
-            <div className="flex items-center space-x-3">
-              <div className="bg-indigo-100 p-2 rounded-full">
-                <User className="w-5 h-5 text-indigo-600" />
-              </div>
-              <span className="hidden sm:inline text-gray-700 font-medium">{admin?.username}</span>
-              <ChevronDown className="w-4 h-4 text-gray-500" />
-            </div>
-          </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsDropdownOpen(!isDropdownOpen);
+                          }}
+                          className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-100"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div className="bg-indigo-100 p-2 rounded-full">
+                              <User className="w-5 h-5 text-indigo-600" />
+                            </div>
+                            <span className="hidden sm:inline text-gray-700 font-medium">{admin?.username || 'Admin'}</span>
+                            <ChevronDown className="w-4 h-4 text-gray-500" />
+                          </div>
+                        </button>
 
           {/* Dropdown Menu */}
           {isDropdownOpen && (

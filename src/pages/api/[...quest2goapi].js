@@ -33,6 +33,8 @@ const handler = async (req, res) => {
         return authMiddleware(handleAdminReply)(req, res);
       } else if (pathname === '/api/chat/mark-read' && method === 'POST') {
         return authMiddleware(markMessagesAsRead)(req, res);
+      } else if (pathname === '/api/admin/update-request-status' && method === 'POST') {
+        return authMiddleware(updateRequestStatus)(req, res);
       }
         break;
       case 'GET':
@@ -68,6 +70,8 @@ const handler = async (req, res) => {
           return authMiddleware(getStats)(req, res);
         } else if (pathname === '/api/admin/institutions') {
           return authMiddleware(getInstitutions)(req, res);
+        } else  if (pathname === '/api/admin/users-with-requests') {
+          return authMiddleware(getUsersWithRequests)(req, res);
         }
         
         break;
@@ -94,6 +98,100 @@ const handler = async (req, res) => {
     res.status(500).json({ error: 'An error occurred while processing your request' });
   }
 };
+
+async function updateRequestStatus(req, res) {
+  try {
+    const { researchId, userId, status } = req.body;
+    
+    if (!researchId || !userId || !status) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // Verify that the status is valid
+    const validStatuses = ['Pending', 'Approved', 'Denied'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+    
+    // Update the request in the database
+    await query(
+      `UPDATE research_access_requests 
+       SET status = ? 
+       WHERE user_id = ? AND research_id = ?`,
+      [status, userId, researchId]
+    );
+    
+    // Fetch the updated request to confirm
+    const [updatedRequest] = await query(
+      `SELECT * FROM research_access_requests 
+       WHERE user_id = ? AND research_id = ?`,
+      [userId, researchId]
+    );
+    
+    if (!updatedRequest) {
+      return res.status(404).json({ error: 'Request not found after update' });
+    }
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'Request status updated successfully',
+      request: updatedRequest
+    });
+    
+  } catch (error) {
+    console.error('Error updating request status:', error);
+    res.status(500).json({ error: 'An error occurred while updating the request status' });
+  }
+}
+
+async function getUsersWithRequests(req, res) {
+  try {
+    // First, get all users
+    const usersResult = await query(`
+      SELECT 
+        user_id, 
+        first_name, 
+        last_name, 
+        email, 
+        user_type,
+        last_activity
+      FROM 
+        user
+      ORDER BY 
+        last_activity DESC
+    `);
+    
+    // For each user, get their requested studies
+    const usersWithRequests = [];
+    
+    for (const user of usersResult) {
+      // Get all requests for this user
+      const requestsResult = await query(`
+        SELECT 
+          rs.research_id,
+          rs.title as study_title,
+          rar.status as request_status
+        FROM 
+          research_access_requests rar
+        JOIN 
+          research_studies rs ON rar.research_id = rs.research_id
+        WHERE 
+          rar.user_id = ?
+      `, [user.user_id]);
+      
+      // Add the requests to the user object
+      usersWithRequests.push({
+        ...user,
+        requests: requestsResult
+      });
+    }
+    
+    res.status(200).json({ users: usersWithRequests });
+  } catch (error) {
+    console.error('Error fetching users with requests:', error);
+    res.status(500).json({ error: 'Error fetching users with requests' });
+  }
+}
 
 async function getInstitutions(req, res) {
   try {

@@ -4,15 +4,15 @@ import Head from 'next/head';
 import AdminSidebar from './AdminSidebar';
 import { 
   Menu, 
-  Bell, 
   User, 
   ChevronDown, 
   Settings,
   LogOut,
-  Search,
-  UserPlus,
-  Mail,
-  Phone
+  CheckCircle,
+  XCircle,
+  Clock,
+  ChevronRight,
+  AlertCircle
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -22,32 +22,34 @@ export default function Users() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [admin, setAdmin] = useState(null);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [users, setUsers] = useState([
-      // Sample user data
-      {
-        id: 1,
-        name: 'John Doe',
-        email: 'john@example.com',
-        role: 'Educator',
-        status: 'Active',
-        joinDate: '2024-01-15'
-      },
-      {
-        id: 2,
-        name: 'Jane Smith',
-        email: 'jane@example.com',
-        role: 'Researcher',
-        status: 'Active',
-        joinDate: '2024-02-01'
-      }
-    ]);
+    const [users, setUsers] = useState([]);
+    const [statusDropdownOpen, setStatusDropdownOpen] = useState(null);
+    const [updatingStatus, setUpdatingStatus] = useState(false);
   
     useEffect(() => {
-      // Simulate loading user data
-      setTimeout(() => {
-        setIsLoading(false);
-      }, 1000);
+      const fetchUsers = async () => {
+        try {
+          setIsLoading(true);
+          const response = await axios.get('/api/admin/users-with-requests');
+          setUsers(response.data.users);
+          setIsLoading(false);
+        } catch (error) {
+          console.error('Error fetching users:', error);
+          setIsLoading(false);
+        }
+      };
+
+      const fetchAdminData = async () => {
+        try {
+          const response = await axios.get('/api/admin/user');
+          setAdmin(response.data);
+        } catch (error) {
+          console.error('Error fetching admin data:', error);
+        }
+      };
+
+      fetchUsers();
+      fetchAdminData();
     }, []);
   
     const handleLogout = async () => {
@@ -58,7 +60,103 @@ export default function Users() {
         console.error('Logout error:', error);
       }
     };
+
+    const formatDate = (dateString) => {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+
+    const getStatusIcon = (status) => {
+      switch (status) {
+        case 'Approved':
+          return <CheckCircle className="w-5 h-5 text-green-600" />;
+        case 'Denied':
+          return <XCircle className="w-5 h-5 text-red-600" />;
+        case 'Pending':
+        default:
+          return <Clock className="w-5 h-5 text-amber-500" />;
+      }
+    };
+
+    const getStatusColorClass = (status) => {
+      switch (status) {
+        case 'Approved':
+          return 'bg-green-100 text-green-800 hover:bg-green-200';
+        case 'Denied':
+          return 'bg-red-100 text-red-800 hover:bg-red-200';
+        case 'Pending':
+        default:
+          return 'bg-amber-100 text-amber-800 hover:bg-amber-200';
+      }
+    };
   
+    const UserInitials = ({ firstName, lastName }) => {
+      const initials = `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`;
+      return (
+        <div className="flex items-center justify-center w-9 h-9 rounded-full bg-indigo-600 text-white font-medium">
+          {initials}
+        </div>
+      );
+    };
+
+    const toggleStatusDropdown = (userId, requestId) => {
+      if (statusDropdownOpen === `${userId}-${requestId}`) {
+        setStatusDropdownOpen(null);
+      } else {
+        setStatusDropdownOpen(`${userId}-${requestId}`);
+      }
+    };
+
+    const updateRequestStatus = async (userId, requestId, researchId, newStatus) => {
+      if (updatingStatus) return;
+      
+      try {
+        setUpdatingStatus(true);
+        
+        // Call API to update status
+        await axios.post('/api/admin/update-request-status', {
+          userId: userId,
+          researchId: researchId,
+          status: newStatus
+        });
+        
+        // Update local state
+        setUsers(users.map(user => {
+          if (user.user_id === userId) {
+            return {
+              ...user,
+              requests: user.requests.map(request => {
+                if (request.research_id === researchId) {
+                  return {
+                    ...request,
+                    request_status: newStatus
+                  };
+                }
+                return request;
+              })
+            };
+          }
+          return user;
+        }));
+        
+        // Close dropdown
+        setStatusDropdownOpen(null);
+      } catch (error) {
+        console.error('Error updating request status:', error);
+        alert('Failed to update request status. Please try again.');
+      } finally {
+        setUpdatingStatus(false);
+      }
+    };
+
+    
+    
     if (isLoading) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -121,7 +219,6 @@ export default function Users() {
                     {/* Right-aligned items */}
                     <div className="flex items-center space-x-6">
                      
-  
                       {/* Admin Profile Dropdown */}
                       <div className="relative">
                         <button 
@@ -135,7 +232,7 @@ export default function Users() {
                             <div className="bg-indigo-100 p-2 rounded-full">
                               <User className="w-5 h-5 text-indigo-600" />
                             </div>
-                            <span className="hidden sm:inline text-gray-700 font-medium">{admin?.username}</span>
+                            <span className="hidden sm:inline text-gray-700 font-medium">{admin?.username || 'Admin'}</span>
                             <ChevronDown className="w-4 h-4 text-gray-500" />
                           </div>
                         </button>
@@ -170,71 +267,151 @@ export default function Users() {
   
             {/* Main Content Area */}
             <div className="flex-1 overflow-auto">
-              <main className="p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h1 className="text-2xl font-semibold text-gray-900">User Management</h1>
-                  <button
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-indigo-700"
-                  >
-                    <UserPlus className="w-5 h-5 mr-2" />
-                    Add New User
-                  </button>
-                </div>
+  <main className="p-4 sm:p-6"> {/* Reduce padding on small screens */}
+    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 space-y-4 sm:space-y-0">
+      <h1 className="text-2xl font-semibold text-gray-900">User Request Management</h1>
+      <div className="flex flex-wrap items-center gap-2"> {/* Use gap for more consistent spacing */}
+        <div className="flex items-center">
+          <Clock className="w-4 h-4 text-amber-500 mr-1" />
+          <span className="text-sm text-gray-600">Pending</span>
+        </div>
+        <div className="flex items-center">
+          <CheckCircle className="w-4 h-4 text-green-600 mr-1" />
+          <span className="text-sm text-gray-600">Approved</span>
+        </div>
+        <div className="flex items-center">
+          <XCircle className="w-4 h-4 text-red-600 mr-1" />
+          <span className="text-sm text-gray-600">Denied</span>
+        </div>
+      </div>
+    </div>
+  
+                {/* Status update notification (could be shown when status is updated) */}
+                {false && (
+                  <div className="mb-4 flex items-center p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                    <AlertCircle className="w-5 h-5 text-indigo-600 mr-2" />
+                    <span className="text-indigo-800">Status updated successfully</span>
+                  </div>
+                )}
   
                 {/* Users Table */}
                 <div className="bg-white shadow rounded-lg overflow-hidden">
-                  <table className="min-w-full divide-y divide-gray-200">
+  <div className="overflow-x-auto"> {/* Add this wrapper for horizontal scrolling */}
+    <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Active On</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requested Studies</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Join Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {users.map((user) => (
-                        <tr key={user.id}>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                        <tr key={`user-${user.user_id}`}>
+                          <td className="px-6 py-4">
                             <div className="flex items-center">
                               <div className="flex-shrink-0 h-10 w-10">
-                                <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                                  <User className="h-6 w-6 text-gray-400" />
-                                </div>
+                                <UserInitials firstName={user.first_name} lastName={user.last_name} />
                               </div>
                               <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                <div className="text-sm font-medium text-gray-900">{`${user.first_name} ${user.last_name}`}</div>
                                 <div className="text-sm text-gray-500">{user.email}</div>
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                              {user.role}
+                          <td className="px-6 py-4">
+                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                              {user.user_type}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                              {user.status}
-                            </span>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {formatDate(user.last_activity)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {user.joinDate}
+                          <td className="px-6 py-4">
+                            {user.requests && user.requests.length > 0 ? (
+                              <div className="space-y-2">
+                                {user.requests.map((request, index) => (
+                                  <div 
+                                    key={`request-${user.user_id}-${request.research_id}-${index}`}
+                                    className="text-sm text-gray-900 break-words max-w-xs flex"
+                                  >
+                                    <ChevronRight className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5 mr-1" />
+                                    <span>{request.study_title}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-500">No studies requested</span>
+                            )}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button className="text-indigo-600 hover:text-indigo-900 mr-3">
-                              <Mail className="w-5 h-5" />
-                            </button>
-                            <button className="text-green-600 hover:text-green-900">
-                              <Phone className="w-5 h-5" />
-                            </button>
+                          <td className="px-6 py-4">
+                            {user.requests && user.requests.length > 0 ? (
+                              <div className="space-y-2">
+                                {user.requests.map((request, index) => (
+                                  <div 
+                                    key={`status-${user.user_id}-${request.research_id}-${index}`}
+                                    className="relative"
+                                  >
+                                    <button
+                                      onClick={() => toggleStatusDropdown(user.user_id, request.research_id)}
+                                      className={`flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColorClass(request.request_status)}`}
+                                      disabled={updatingStatus}
+                                    >
+                                      {getStatusIcon(request.request_status)}
+                                      <span className="ml-2">{request.request_status}</span>
+                                      <ChevronDown className="w-3 h-3 ml-1" />
+                                    </button>
+                                    
+                                    {/* Status Dropdown */}
+                                    {statusDropdownOpen === `${user.user_id}-${request.research_id}` && (
+  <div 
+    className="absolute right-0 mt-1 w-36 bg-white rounded-md shadow-lg z-10 border border-gray-200"
+    style={{
+      // Position the dropdown above the button if it's near the bottom of the screen
+      bottom: index >= user.requests.length - 2 ? '100%' : 'auto',
+      marginBottom: index >= user.requests.length - 2 ? '5px' : 'auto'
+    }}
+  >
+    <div className="py-1">
+      <button
+        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50"
+        onClick={() => updateRequestStatus(user.user_id, request.request_id, request.research_id, 'Pending')}
+      >
+        <Clock className="w-4 h-4 text-amber-500 mr-2" />
+        Pending
+      </button>
+      <button
+        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50"
+        onClick={() => updateRequestStatus(user.user_id, request.request_id, request.research_id, 'Approved')}
+      >
+        <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+        Approved
+      </button>
+      <button
+        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50"
+        onClick={() => updateRequestStatus(user.user_id, request.request_id, request.research_id, 'Denied')}
+      >
+        <XCircle className="w-4 h-4 text-red-600 mr-2" />
+        Denied
+      </button>
+    </div>
+  </div>
+)}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">No requests</span>
+                            )}
                           </td>
                         </tr>
                       ))}
                     </tbody>
-                  </table>
-                </div>
+                    </table>
+  </div>
+</div>
               </main>
             </div>
           </div>

@@ -192,8 +192,7 @@ const handleOpenChat = (article) => {
 
   const handleLogout = async () => {
     try {
-      await axios.post('/api/logout');
-      setUser(null);
+      await axios.post('/api/logout', { logoutType: 'all' });
       router.push('/login');
     } catch (error) {
       console.error('Logout error:', error);

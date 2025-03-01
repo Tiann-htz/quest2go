@@ -9,7 +9,8 @@ const handler = async (req, res) => {
   console.log('API handler called:', req.method, req.url);
   const { method } = req;
   const { pathname } = parse(req.url, true);
- 
+
+  //main API router or request handler section:
   try {
     switch (method) {
       case 'POST':
@@ -72,6 +73,20 @@ const handler = async (req, res) => {
           return authMiddleware(getInstitutions)(req, res);
         } else  if (pathname === '/api/admin/users-with-requests') {
           return authMiddleware(getUsersWithRequests)(req, res);
+        }  else if (pathname === '/api/admin/analytics/studies-by-category') {
+          return authMiddleware(getStudiesByCategory)(req, res);
+        } else if (pathname === '/api/admin/analytics/user-activity') {
+          return authMiddleware(getUserActivity)(req, res);
+        } else if (pathname === '/api/admin/analytics/chat-metrics') {
+          return authMiddleware(getChatMetrics)(req, res);
+        } else if (pathname === '/api/admin/analytics/request-status') {
+          return authMiddleware(getRequestStatus)(req, res);
+        } else if (pathname === '/api/admin/analytics/study-institutions') {
+          return authMiddleware(getStudyInstitutions)(req, res);
+        } else if (pathname === '/api/admin/analytics/recent-logs') {
+          return authMiddleware(getRecentLogs)(req, res);
+        } else if (pathname === '/api/admin/analytics/summary-stats') {
+          return authMiddleware(getSummaryStats)(req, res);
         }
         
         break;
@@ -99,6 +114,227 @@ const handler = async (req, res) => {
   }
 };
 
+/////analytics.js API endpoints
+async function getStudiesByCategory(req, res) {
+  try {
+    const results = await query(`
+      SELECT category as name, COUNT(*) as value
+      FROM research_studies
+      GROUP BY category
+      ORDER BY value DESC
+      LIMIT 5
+    `);
+    
+    res.status(200).json(results);
+  } catch (error) {
+    console.error('Error fetching study categories:', error);
+    res.status(500).json({ error: 'Failed to fetch study categories' });
+  }
+}
+
+async function getUserActivity(req, res) {
+  try {
+    // Get monthly activity for the last 6 months
+    const results = await query(`
+      SELECT 
+        DATE_FORMAT(last_activity, '%b') as name,
+        SUM(CASE WHEN user_type = 'Student' THEN 1 ELSE 0 END) as Students,
+        SUM(CASE WHEN user_type = 'Researcher' THEN 1 ELSE 0 END) as Researchers,
+        SUM(CASE WHEN user_type = 'Teacher' THEN 1 ELSE 0 END) as Teachers
+      FROM user
+      WHERE last_activity >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+      GROUP BY DATE_FORMAT(last_activity, '%b'), MONTH(last_activity)
+      ORDER BY MONTH(last_activity)
+    `);
+    
+    res.status(200).json(results);
+  } catch (error) {
+    console.error('Error fetching user activity:', error);
+    res.status(500).json({ error: 'Failed to fetch user activity' });
+  }
+}
+
+async function getChatMetrics(req, res) {
+  try {
+    const results = await query(`
+      SELECT 
+        DATE_FORMAT(timestamp, '%b') as name,
+        COUNT(*) as messages
+      FROM chats
+      WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+      GROUP BY DATE_FORMAT(timestamp, '%b'), MONTH(timestamp)
+      ORDER BY MONTH(timestamp)
+    `);
+    
+    res.status(200).json(results);
+  } catch (error) {
+    console.error('Error fetching chat metrics:', error);
+    res.status(500).json({ error: 'Failed to fetch chat metrics' });
+  }
+}
+
+async function getRequestStatus(req, res) {
+  try {
+    const results = await query(`
+      SELECT 
+        status as name,
+        COUNT(*) as value
+      FROM research_access_requests
+      GROUP BY status
+    `);
+    
+    res.status(200).json(results);
+  } catch (error) {
+    console.error('Error fetching request status:', error);
+    res.status(500).json({ error: 'Failed to fetch request status' });
+  }
+}
+
+async function getStudyInstitutions(req, res) {
+  try {
+    const results = await query(`
+      SELECT 
+        institution as name,
+        COUNT(*) as value
+      FROM research_studies
+      GROUP BY institution
+      ORDER BY value DESC
+      LIMIT 5
+    `);
+    
+    res.status(200).json(results);
+  } catch (error) {
+    console.error('Error fetching study institutions:', error);
+    res.status(500).json({ error: 'Failed to fetch study institutions' });
+  }
+}
+
+async function getRecentLogs(req, res) {
+  try {
+    // Get study logs with study title
+    const studyLogs = await query(`
+      SELECT 
+        date_added as timestamp,
+        CONCAT('New study added: "', title, '"') as action,
+        'study' as type,
+        title as studyTitle,
+        NULL as userName,
+        NULL as userEmail,
+        NULL as userType,
+        research_id as studyId
+      FROM research_studies
+      ORDER BY date_added DESC
+      LIMIT 5
+    `);
+    
+    // Get request logs with user name and study title
+    const requestLogs = await query(`
+      SELECT 
+        r.request_date as timestamp,
+        CONCAT(
+          CASE r.status
+            WHEN 'Pending' THEN 'New access request from '
+            WHEN 'Approved' THEN 'User request approved: '
+            WHEN 'Denied' THEN 'User request denied: '
+          END,
+          CONCAT(u.first_name, ' ', u.last_name), ' for Study: ', s.title
+        ) as action,
+        'request' as type,
+        s.title as studyTitle,
+        CONCAT(u.first_name, ' ', u.last_name) as userName,
+        u.email as userEmail,
+        u.user_type as userType,
+        r.research_id as studyId
+      FROM research_access_requests r
+      JOIN user u ON r.user_id = u.user_id
+      JOIN research_studies s ON r.research_id = s.research_id
+      ORDER BY r.request_date DESC
+      LIMIT 5
+    `);
+    
+    // Get chat logs with user name and study title
+    const chatLogs = await query(`
+      SELECT 
+        c.timestamp,
+        CONCAT('New chat message from ', CONCAT(u.first_name, ' ', u.last_name), ' for Study: ', s.title) as action,
+        'chat' as type,
+        s.title as studyTitle,
+        CONCAT(u.first_name, ' ', u.last_name) as userName,
+        u.email as userEmail,
+        u.user_type as userType,
+        c.research_id as studyId
+      FROM chats c
+      JOIN user u ON c.sender_id = u.user_id
+      JOIN research_studies s ON c.research_id = s.research_id
+      WHERE c.adminsender_id IS NULL
+      ORDER BY c.timestamp DESC
+      LIMIT 5
+    `);
+    
+    // Combine all logs and sort by timestamp (most recent first)
+    const allLogs = [...studyLogs, ...requestLogs, ...chatLogs]
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 10);
+    
+    res.status(200).json(allLogs);
+  } catch (error) {
+    console.error('Error fetching recent logs:', error);
+    res.status(500).json({ error: 'Failed to fetch recent logs' });
+  }
+}
+
+async function getSummaryStats(req, res) {
+  try {
+    // Get total studies
+    const [totalStudiesResult] = await query(`
+      SELECT COUNT(*) as count FROM research_studies
+    `);
+    
+    // Get total messages
+    const [totalMessagesResult] = await query(`
+      SELECT COUNT(*) as count FROM chats
+    `);
+    
+    // Get total requests
+    const [totalRequestsResult] = await query(`
+      SELECT COUNT(*) as count FROM research_access_requests
+    `);
+    
+    // Calculate average time between user message and admin reply
+    // This requires a more complex query that might need customization based on your specific data model
+    const [avgResponseTimeResult] = await query(`
+      SELECT 
+        SEC_TO_TIME(AVG(TIME_TO_SEC(TIMEDIFF(a.timestamp, u.timestamp)))) as avg_time
+      FROM 
+        (SELECT research_id, MIN(timestamp) as timestamp FROM chats WHERE adminsender_id IS NOT NULL GROUP BY research_id) a
+        JOIN
+        (SELECT research_id, MIN(timestamp) as timestamp FROM chats WHERE adminsender_id IS NULL GROUP BY research_id) u
+        ON a.research_id = u.research_id
+      WHERE a.timestamp > u.timestamp
+    `);
+    
+    const avgResponseTime = avgResponseTimeResult && avgResponseTimeResult.avg_time 
+      ? avgResponseTimeResult.avg_time.substring(0, 5) // Format as HH:MM
+      : '0:00';
+    
+    const summaryStats = {
+      totalStudies: totalStudiesResult.count || 0,
+      totalMessages: totalMessagesResult.count || 0,
+      totalRequests: totalRequestsResult.count || 0,
+      averageResponseTime: avgResponseTime
+    };
+    
+    res.status(200).json(summaryStats);
+  } catch (error) {
+    console.error('Error fetching summary stats:', error);
+    res.status(500).json({ error: 'Failed to fetch summary stats' });
+  }
+}
+
+
+
+
+/////users.js API endpoint
 async function updateRequestStatus(req, res) {
   try {
     const { researchId, userId, status } = req.body;
@@ -193,6 +429,12 @@ async function getUsersWithRequests(req, res) {
   }
 }
 
+
+
+
+
+
+/////panel.js API endpoint
 async function getInstitutions(req, res) {
   try {
     // Get distinct institutions from research_studies
@@ -281,7 +523,10 @@ async function getStats(req, res) {
 }
 
 
-//Users side
+
+
+
+/////Users side chats API endpoint
 async function markMessagesAsRead(req, res) {
   try {
     const userId = req.userId;
@@ -442,7 +687,7 @@ async function handleChatMessage(req, res) {
 
 
 
-//Users side
+//Users side chats
 async function getAdminReplies(req, res) {
   try {
     const userId = req.userId;
@@ -577,7 +822,7 @@ async function getChatMessages(req, res) {
 
 
 
-//Users side
+//Users side chats
 async function editChatMessage(req, res) {
   try {
     const userId = req.userId;
@@ -634,7 +879,7 @@ async function deleteChatMessage(req, res) {
 
 
 
-//Admin Side
+/////Admin Side chats API endpoint
 async function handleAdminReply(req, res) {
   const adminId = req.adminId;
   const { userId, researchId, reply } = req.body;
@@ -779,7 +1024,7 @@ async function getUserStudies(req, res) {
 
 
 
-//////Filtering and Searching
+//////Filtering and Searching - home.js API endpoint
 async function getStudyReferences(req, res) {
   try {
     const { studyId } = req.query;
@@ -979,7 +1224,7 @@ async function searchStudies(req, res) {
 
 
 
-/////Admin Study References section - Adding, Updating, Deleting
+/////Admin Study References section - Adding, Updating, Deleting - studies.js API endpoint
 async function getReferences(req, res) {
   try {
     const studyId = req.url.split('/').pop();
@@ -1170,7 +1415,7 @@ async function deleteStudy(req, res) {
 
 
 
-//Admin Login section
+//Admin Login section - login.js and panel.js
 async function handleAdminLogin(req, res) {
   try {
     const { email, password } = req.body;
@@ -1269,7 +1514,7 @@ async function getUserDataAdmin(req, res) {
 
 
 
-//Users Login, Logout, Signup section
+//Users Login, Logout, section - login and home.js API endpoint
 async function handleLogin(req, res) {
   try {
     const { email, password } = req.body;
@@ -1462,6 +1707,8 @@ async function getUserData(req, res) {
   }
 }
 
+
+//signup.js API endpoint
 async function handleSignup(req, res) {
   try {
     const {

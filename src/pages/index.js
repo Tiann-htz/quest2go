@@ -71,7 +71,7 @@ useEffect(() => {
     e.stopPropagation(); // Stop event propagation
     
     try {
-      await axios.post('/api/logout');
+      await axios.post('/api/logout', { logoutType: 'all' });
       setUser(null);
       setIsDropdownOpen(false); // Close dropdown after successful logout
       router.push('/');

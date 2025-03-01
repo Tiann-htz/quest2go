@@ -95,7 +95,7 @@ export default function Chats() {
  
   const handleLogout = async () => {
     try {
-      await axios.post('/api/logout');
+      await axios.post('/api/logout', { logoutType: 'all' });
       router.push('/login');
     } catch (error) {
       console.error('Logout error:', error);

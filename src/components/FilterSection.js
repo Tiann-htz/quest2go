@@ -90,7 +90,7 @@ const FilterSection = ({ onFilterChange, initialFilters }) => {
 
   const clearFilters = () => {
     const resetFilters = {
-      yearRange: [new Date().getFullYear() - 10, new Date().getFullYear()],
+      yearRange: [availableOptions.years.min, availableOptions.years.max],
       selectedDegrees: [],
       selectedCategories: [],
       selectedInstitutions: []
@@ -116,8 +116,8 @@ const FilterSection = ({ onFilterChange, initialFilters }) => {
           <div className="px-2 pt-4">
             <Slider
               defaultValue={filters.yearRange}
-              min={new Date().getFullYear() - 10}
-              max={new Date().getFullYear()}
+              min={availableOptions.years.min}
+              max={availableOptions.years.max}
               step={1}
               value={filters.yearRange}
               onValueChange={(value) => handleFilterChange('year', value)}

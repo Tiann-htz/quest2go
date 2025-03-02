@@ -11,7 +11,6 @@ import {
   Menu, 
   Search, 
   Link as LinkIcon,
-  Bell,
   User,
   ChevronDown,
   Settings,
@@ -28,7 +27,7 @@ export default function Studies() {
   const [currentStudy, setCurrentStudy] = useState(null);
   const [references, setReferences] = useState([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-const [admin, setAdmin] = useState(null);
+  const [admin, setAdmin] = useState(null);
   const [newReference, setNewReference] = useState({
     reference_link: '',
     reference_details: ''
@@ -38,7 +37,7 @@ const [admin, setAdmin] = useState(null);
     title: '',
     abstract: '',
     keywords: '',
-    year_of_completion: '',
+    year_of_completion: '', // Will store the date in YYYY-MM-DD format
     degree_program: '',
     category: '',
     institution: '',
@@ -54,7 +53,7 @@ const [admin, setAdmin] = useState(null);
     if (currentStudy) {
       fetchReferences(currentStudy.research_id);
     } else {
-      setReferences([]); // Add this line to ensure references are cleared when no study is selected
+      setReferences([]); // Ensure references are cleared when no study is selected
     }
   }, [currentStudy]);
 
@@ -149,7 +148,7 @@ const [admin, setAdmin] = useState(null);
       title: study.title,
       abstract: study.abstract,
       keywords: study.keywords,
-      year_of_completion: study.year_of_completion,
+      year_of_completion: study.year_of_completion, // This should be in YYYY-MM-DD format
       degree_program: study.degree_program,
       category: study.category,
       institution: study.institution,
@@ -220,83 +219,81 @@ const [admin, setAdmin] = useState(null);
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Top Navigation */}
           <div className="bg-white shadow">
-          <div className="px-4 sm:px-6 lg:px-8">
-  <div className="flex h-16 items-center justify-between">
-    <button
-      onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-      className="lg:hidden text-gray-500 hover:text-gray-700"
-    >
-      <Menu className="w-6 h-6" />
-    </button>
-    <div className="flex-1 px-4 flex justify-between">
-      <div className="flex-1 flex">
-        <div className="w-full flex md:ml-0">
-          <div className="relative w-full text-gray-400 focus-within:text-gray-600">
-            <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
-              <Search className="h-5 w-5" />
-            </div>
-            <input
-              type="text"
-              className="block w-full h-full pl-8 pr-3 py-2 border-transparent text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-0 focus:border-transparent sm:text-sm"
-              placeholder="Search studies..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
-      
-      {/* Add this new section for notifications and user profile */}
-      <div className="flex items-center space-x-6">
-
-        {/* Admin Profile Dropdown */}
-        <div className="relative">
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsDropdownOpen(!isDropdownOpen);
-                          }}
-                          className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-100"
-                        >
-                          <div className="flex items-center space-x-3">
-                            <div className="bg-indigo-100 p-2 rounded-full">
-                              <User className="w-5 h-5 text-indigo-600" />
-                            </div>
-                            <span className="hidden sm:inline text-gray-700 font-medium">{admin?.username || 'Admin'}</span>
-                            <ChevronDown className="w-4 h-4 text-gray-500" />
+            <div className="px-4 sm:px-6 lg:px-8">
+              <div className="flex h-16 items-center justify-between">
+                <button
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="lg:hidden text-gray-500 hover:text-gray-700"
+                >
+                  <Menu className="w-6 h-6" />
+                </button>
+                <div className="flex-1 px-4 flex justify-between">
+                  <div className="flex-1 flex">
+                    <div className="w-full flex md:ml-0">
+                      <div className="relative w-full text-gray-400 focus-within:text-gray-600">
+                        <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
+                          <Search className="h-5 w-5" />
+                        </div>
+                        <input
+                          type="text"
+                          className="block w-full h-full pl-8 pr-3 py-2 border-transparent text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-0 focus:border-transparent sm:text-sm"
+                          placeholder="Search studies..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Admin Profile Dropdown */}
+                  <div className="flex items-center space-x-6">
+                    <div className="relative">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsDropdownOpen(!isDropdownOpen);
+                        }}
+                        className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-100"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="bg-indigo-100 p-2 rounded-full">
+                            <User className="w-5 h-5 text-indigo-600" />
                           </div>
-                        </button>
+                          <span className="hidden sm:inline text-gray-700 font-medium">{admin?.username || 'Admin'}</span>
+                          <ChevronDown className="w-4 h-4 text-gray-500" />
+                        </div>
+                      </button>
 
-          {/* Dropdown Menu */}
-          {isDropdownOpen && (
-            <div 
-              onClick={(e) => e.stopPropagation()}
-              className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-10 border border-gray-200"
-            >
-              <button 
-                className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 w-full"
-              >
-                <Settings className="w-4 h-4 mr-3" />
-                Settings
-              </button>
-              <button 
-                onClick={handleLogout}
-                className="flex items-center px-4 py-2 text-red-600 hover:bg-gray-100 w-full"
-              >
-                <LogOut className="w-4 h-4 mr-3" />
-                Logout
-              </button>
+                      {/* Dropdown Menu */}
+                      {isDropdownOpen && (
+                        <div 
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-10 border border-gray-200"
+                        >
+                          <button 
+                            className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 w-full"
+                          >
+                            <Settings className="w-4 h-4 mr-3" />
+                            Settings
+                          </button>
+                          <button 
+                            onClick={handleLogout}
+                            className="flex items-center px-4 py-2 text-red-600 hover:bg-gray-100 w-full"
+                          >
+                            <LogOut className="w-4 h-4 mr-3" />
+                            Logout
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
           </div>
 
-           {/* Main Content Area */}
-           <div className="flex-1 overflow-auto">
+          {/* Main Content Area */}
+          <div className="flex-1 overflow-auto">
             <main className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-semibold text-gray-900">Research Studies</h1>
@@ -356,14 +353,15 @@ const [admin, setAdmin] = useState(null);
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="text-sm text-gray-500">{study.institution}</div>
                               </td>
+                              
                               <td className="px-6 py-4 whitespace-nowrap">
-        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-          study.status === 'Available' ? 'bg-green-100 text-green-800' :
-          'bg-red-100 text-red-800'
-        }`}>
-          {study.status}
-        </span>
-      </td>
+                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  study.status === 'Available' ? 'bg-green-100 text-green-800' :
+                                  'bg-red-100 text-red-800'
+                                }`}>
+                                  {study.status}
+                                </span>
+                              </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <button
                                   onClick={() => handleEdit(study)}
@@ -449,14 +447,12 @@ const [admin, setAdmin] = useState(null);
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Year of Completion</label>
+                      <label className="block text-sm font-medium text-gray-700">Date of Completion</label>
                       <input
-                        type="number"
+                        type="date"
                         name="year_of_completion"
                         value={formData.year_of_completion}
                         onChange={handleInputChange}
-                        min="1900"
-                        max="2099"
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                         required
                       />
@@ -500,32 +496,33 @@ const [admin, setAdmin] = useState(null);
                   </div>
 
                   <div>
-  <label className="block text-sm font-medium text-gray-700">Author</label>
-  <input
-    type="text"
-    name="author"
-    value={formData.author}
-    onChange={handleInputChange}
-    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-    required
-  />
-</div>
+                    <label className="block text-sm font-medium text-gray-700">Author</label>
+                    <input
+                      type="text"
+                      name="author"
+                      value={formData.author}
+                      onChange={handleInputChange}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      required
+                    />
+                  </div>
 
-<div>
-        <label className="block text-sm font-medium text-gray-700">Status</label>
-        <select
-          name="status"
-          value={formData.status}
-          onChange={handleInputChange}
-          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-          required
-        >
-          <option value="Non-Available">Non-Available</option>
-          <option value="Available">Available</option>
-        </select>
-      </div>
-                 {/* Add New Reference */}
-                 <div className="flex gap-3 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Status</label>
+                    <select
+                      name="status"
+                      value={formData.status}
+                      onChange={handleInputChange}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      required
+                    >
+                      <option value="Non-Available">Non-Available</option>
+                      <option value="Available">Available</option>
+                    </select>
+                  </div>
+                  
+                  {/* Add New Reference */}
+                  <div className="flex gap-3 mb-4">
                     <div className="flex-1">
                       <input
                         type="url"

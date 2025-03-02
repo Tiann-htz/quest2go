@@ -1045,7 +1045,7 @@ async function getFilterOptions(req, res) {
       query('SELECT DISTINCT degree_program FROM research_studies WHERE degree_program IS NOT NULL ORDER BY degree_program'),
       query('SELECT DISTINCT category FROM research_studies WHERE category IS NOT NULL ORDER BY category'),
       query('SELECT DISTINCT institution FROM research_studies WHERE institution IS NOT NULL ORDER BY institution'),
-      query('SELECT MIN(year_of_completion) as min_year, MAX(year_of_completion) as max_year FROM research_studies')
+      query('SELECT YEAR(MIN(year_of_completion)) as min_year, YEAR(MAX(year_of_completion)) as max_year FROM research_studies')
     ]);
 
     res.status(200).json({
@@ -1102,30 +1102,27 @@ async function searchStudies(req, res) {
 
         whereConditions.push(`(${searchCondition})`);
         
-        // Add parameters for both ranking and search conditions
         searchTerms.forEach(term => {
           // Parameters for ranking
           parameters.push(
-            term.toLowerCase(), // Exact match
-            `${term.toLowerCase()}%`, // Starts with
-            `%${term.toLowerCase()}%`, // Contains
-            `%${term.toLowerCase()}%`, // Keywords
-            `%${term.toLowerCase()}%`, // Abstract
-            `%${term.toLowerCase()}%`, // Author
-            `%${term.toLowerCase()}%`, // Institution
-            `%${term.toLowerCase()}%`  // Category
+            term.toLowerCase(), 
+            `${term.toLowerCase()}%`, 
+            `%${term.toLowerCase()}%`, 
+            `%${term.toLowerCase()}%`, 
+            `%${term.toLowerCase()}%`, 
+            `%${term.toLowerCase()}%`, 
+            `%${term.toLowerCase()}%`, 
+            `%${term.toLowerCase()}%` 
           );
-          // Parameters for WHERE conditions
           const termPattern = `%${term}%`;
           parameters.push(...Array(6).fill(termPattern));
         });
       }
     }
 
-    // Add filter conditions if present
     if (filters) {
       if (filters.yearRange && Array.isArray(filters.yearRange)) {
-        whereConditions.push('rs.year_of_completion BETWEEN ? AND ?');
+        whereConditions.push('YEAR(rs.year_of_completion) BETWEEN ? AND ?');
         parameters.push(filters.yearRange[0], filters.yearRange[1]);
       }
 

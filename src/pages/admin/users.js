@@ -355,23 +355,45 @@ export default function Users() {
                                     className="relative"
                                   >
                                     <button
-                                      onClick={() => toggleStatusDropdown(user.user_id, request.research_id)}
-                                      className={`flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColorClass(request.request_status)}`}
-                                      disabled={updatingStatus}
-                                    >
-                                      {getStatusIcon(request.request_status)}
-                                      <span className="ml-2">{request.request_status}</span>
-                                      <ChevronDown className="w-3 h-3 ml-1" />
-                                    </button>
+  onClick={() => toggleStatusDropdown(user.user_id, request.research_id)}
+  className={`flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColorClass(request.request_status)}`}
+  disabled={updatingStatus}
+  data-dropdown-id={`${user.user_id}-${request.research_id}`}
+>
+  {getStatusIcon(request.request_status)}
+  <span className="ml-2">{request.request_status}</span>
+  <ChevronDown className="w-3 h-3 ml-1" />
+</button>
                                     
                                     {/* Status Dropdown */}
-                                    {statusDropdownOpen === `${user.user_id}-${request.research_id}` && (
+{statusDropdownOpen === `${user.user_id}-${request.research_id}` && (
   <div 
-    className="absolute right-0 mt-1 w-36 bg-white rounded-md shadow-lg z-10 border border-gray-200"
+    className="fixed bg-white rounded-md shadow-lg z-50 border border-gray-200"
     style={{
-      // Position the dropdown above the button if it's near the bottom of the screen
-      bottom: index >= user.requests.length - 2 ? '100%' : 'auto',
-      marginBottom: index >= user.requests.length - 2 ? '5px' : 'auto'
+      width: '144px', // w-36 equivalent
+      // Calculate position based on button's position in the viewport
+      top: (() => {
+        // Get the button element
+        const buttonElement = document.querySelector(`button[data-dropdown-id="${user.user_id}-${request.research_id}"]`);
+        if (!buttonElement) return 'auto';
+        
+        const rect = buttonElement.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        
+        // If space below is limited, position above the button
+        if (spaceBelow < 150) {
+          return `${rect.top - 120}px`; // Position above with enough space for dropdown
+        }
+        // Otherwise position below
+        return `${rect.bottom + 5}px`;
+      })(),
+      left: (() => {
+        const buttonElement = document.querySelector(`button[data-dropdown-id="${user.user_id}-${request.research_id}"]`);
+        if (!buttonElement) return 'auto';
+        
+        const rect = buttonElement.getBoundingClientRect();
+        return `${rect.left}px`;
+      })()
     }}
   >
     <div className="py-1">

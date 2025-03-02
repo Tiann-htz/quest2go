@@ -37,7 +37,7 @@ export default function Studies() {
     title: '',
     abstract: '',
     keywords: '',
-    year_of_completion: '', // Will store the date in YYYY-MM-DD format
+    year_of_completion: '',
     degree_program: '',
     category: '',
     institution: '',
@@ -142,13 +142,27 @@ export default function Studies() {
     }
   };
 
+  // Format date for HTML date input (YYYY-MM-DD)
+  const formatDateForInput = (dateString) => {
+    if (!dateString) return '';
+    
+    // Handle various date formats that might come from the database
+    const date = new Date(dateString);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) return '';
+    
+    // Format as YYYY-MM-DD
+    return date.toISOString().split('T')[0];
+  };
+
   const handleEdit = (study) => {
     setCurrentStudy(study);
     setFormData({
       title: study.title,
       abstract: study.abstract,
       keywords: study.keywords,
-      year_of_completion: study.year_of_completion, // This should be in YYYY-MM-DD format
+      year_of_completion: formatDateForInput(study.year_of_completion), // Format the date properly
       degree_program: study.degree_program,
       category: study.category,
       institution: study.institution,

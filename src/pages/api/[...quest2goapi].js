@@ -22,6 +22,8 @@ const handler = async (req, res) => {
           await handleAdminLogin(req, res);
         } else if (pathname === '/api/logout') {
           await handleLogout(req, res); 
+        } else if (pathname === '/api/admin/logout') {
+          await handleAdminLogout(req, res);
         } else if (pathname === '/api/admin/studies') {
           return authMiddleware(createStudy)(req, res); 
         } else if (pathname.startsWith('/api/admin/references/') && method === 'POST') {
@@ -1413,6 +1415,26 @@ async function deleteStudy(req, res) {
 
 
 //Admin Login section - login.js and panel.js
+async function handleAdminLogout(req, res) {
+  try {
+    // Only clear the admin token
+    res.setHeader('Set-Cookie', [
+      serialize('adminToken', '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: -1,
+        path: '/'
+      })
+    ]);
+
+    res.status(200).json({ message: 'Admin logged out successfully' });
+  } catch (error) {
+    console.error('Admin logout error:', error);
+    res.status(500).json({ error: 'Error during admin logout' });
+  }
+}
+
 async function handleAdminLogin(req, res) {
   try {
     const { email, password } = req.body;

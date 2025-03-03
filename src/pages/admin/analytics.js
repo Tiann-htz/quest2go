@@ -169,7 +169,7 @@ export default function Analytics() {
 
   const handleLogout = async () => {
     try {
-      await axios.post('/api/logout', { logoutType: 'all' });
+      await axios.post('/api/admin/logout');
       router.push('/login');
     } catch (error) {
       console.error('Logout error:', error);

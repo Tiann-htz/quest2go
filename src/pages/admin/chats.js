@@ -4,12 +4,10 @@ import Head from 'next/head';
 import AdminSidebar from './AdminSidebar';
 import { 
   Menu, 
-  Bell, 
   User, 
   ChevronDown, 
   Settings,
   LogOut,
-  Search,
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -95,7 +93,7 @@ export default function Chats() {
  
   const handleLogout = async () => {
     try {
-      await axios.post('/api/logout', { logoutType: 'all' });
+      await axios.post('/api/admin/logout');
       router.push('/login');
     } catch (error) {
       console.error('Logout error:', error);

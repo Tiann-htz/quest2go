@@ -142,9 +142,8 @@ const ChatWindow = ({ article, onClose, isOpen, onUpdateNotifications }) => {
                 withCredentials: true
               });
               
-              if (onUpdateNotifications) {
-                onUpdateNotifications();
-              }
+              // Remove the onUpdateNotifications call here
+              // We already called it in handleOpenChat
             } catch (error) {
               console.error('Failed to mark messages as read:', error);
             }
@@ -152,7 +151,7 @@ const ChatWindow = ({ article, onClose, isOpen, onUpdateNotifications }) => {
         };
       
         markAsRead();
-      }, [isOpen, article?.id, onUpdateNotifications]);
+    }, [isOpen, article?.id]); // Remove onUpdateNotifications from the dependency array
 
       
     // API functions
@@ -165,9 +164,7 @@ const ChatWindow = ({ article, onClose, isOpen, onUpdateNotifications }) => {
             const filteredMessages = filterValidMessages(response.data.messages);
             setMessages(filteredMessages);
             
-            if (onUpdateNotifications) {
-              onUpdateNotifications();
-            }
+            // Remove the onUpdateNotifications call here
           }
         } catch (err) {
           console.error('Failed to fetch messages:', err);
@@ -276,8 +273,7 @@ const ChatWindow = ({ article, onClose, isOpen, onUpdateNotifications }) => {
         return date.toLocaleTimeString('en-PH', { 
             hour: '2-digit', 
             minute: '2-digit',
-            hour12: true,
-            timeZone: 'Asia/Manila'
+            hour12: true
         });
     };
 

@@ -21,6 +21,7 @@ const ReferencesList = ({ studyId, referenceCount }) => {
   const [references, setReferences] = useState([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+ 
 
   const fetchReferences = async () => {
     if (!isExpanded) {
@@ -98,6 +99,7 @@ const ReferencesList = ({ studyId, referenceCount }) => {
 const NetworkGraphModal = ({ isOpen, onClose, articles, activeChatWindows, onOpenChat, onCloseChat }) => {
   const modalRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showChatWindow, setShowChatWindow] = useState(false);
@@ -112,17 +114,32 @@ const NetworkGraphModal = ({ isOpen, onClose, articles, activeChatWindows, onOpe
         onClose();
       }
     }
-
+  
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
-      setIsLoading(true);
-      const timer = setTimeout(() => setIsLoading(false), articles.length > 0 ? 1500 : 0);
-      return () => {
-        clearTimeout(timer);
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
+      
+      // Only show loading state if this is the first time loading
+      if (!hasLoaded) {
+        setIsLoading(true);
+        const timer = setTimeout(() => {
+          setIsLoading(false);
+          setHasLoaded(true); // Mark as loaded
+        }, articles.length > 0 ? 1500 : 0);
+        
+        return () => {
+          clearTimeout(timer);
+          document.removeEventListener('mousedown', handleClickOutside);
+        };
+      } else {
+        // If already loaded before, don't show loader
+        setIsLoading(false);
+        
+        return () => {
+          document.removeEventListener('mousedown', handleClickOutside);
+        };
+      }
     }
-  }, [isOpen, onClose, articles.length]);
+  }, [isOpen, onClose, articles.length, hasLoaded]);
 
   if (!isOpen) return null;
 

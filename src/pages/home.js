@@ -8,6 +8,7 @@ import FilterSection from '@/components/FilterSection';
 import LoginModal from '@/components/LoginModal';
 import NetworkGraphModal from '@/components/NetworkGraphModal';
 import ChatWindow from '@/components/ChatWindow';
+import SingleStudyModal from '@/components/SingleStudyModal';
 import Image from 'next/image';
 
 export default function Home() {
@@ -31,11 +32,22 @@ export default function Home() {
   const [showNotifications, setShowNotifications] = useState(false);
 const [chatRequests, setChatRequests] = useState([]);
 const [unreadCount, setUnreadCount] = useState(0);
+const [showSingleStudyModal, setShowSingleStudyModal] = useState(false);
 
-const updateNotificationCount = async () => {
+const updateNotificationCount = async (chatId = null) => {
   if (!user) return; // Don't make the request if there's no user
 
   try {
+    // If a specific chatId is provided, only mark that chat as read
+    if (chatId) {
+      await axios.post('/api/chat/mark-read', {
+        researchId: chatId
+      }, {
+        withCredentials: true
+      });
+    }
+    
+    // Always get the updated notification counts
     const response = await axios.get('/api/chat/requests', {
       withCredentials: true 
     });
@@ -47,12 +59,12 @@ const updateNotificationCount = async () => {
   } catch (error) {
     if (error.response?.status === 401) {
       console.log('User not authenticated, please log in');
-      // Optionally redirect to login or handle differently
     } else {
       console.error('Failed to update notifications:', error);
     }
   }
 };
+
 
 useEffect(() => {
   if (user && !isLoading) { // Only run if user is authenticated and loading is complete
@@ -69,8 +81,8 @@ useEffect(() => {
 const handleOpenChat = (article) => {
   if (!activeChatWindows.find(chat => chat.id === article.id)) {
     setActiveChatWindows([...activeChatWindows, article]);
-    // Update notification count when chat window is opened
-    updateNotificationCount();
+    // Update notification count immediately when chat window is opened
+    updateNotificationCount(article.id);
   }
 };
 
@@ -170,16 +182,22 @@ const handleOpenChat = (article) => {
   };
 
   const handleArticleClick = (article) => {
-    console.log('Selected article:', article); 
+    console.log('Selected article:', article);
     
     if (!user) {
       setSelectedArticle(article);
       setShowLoginModal(true);
     } else {
       setSelectedArticle(article);
-      setShowNetworkGraphModal(true);
+      // Show different modal based on result count
+      if (searchResults.length === 1) {
+        setShowSingleStudyModal(true);
+      } else {
+        setShowNetworkGraphModal(true);
+      }
     }
   };
+  
 
   const handleLoginSuccess = (userData) => {
     setUser(userData);
@@ -486,6 +504,21 @@ const handleOpenChat = (article) => {
         onCloseChat={handleCloseChat}
       />
 
+<SingleStudyModal
+  isOpen={showSingleStudyModal}
+  onClose={() => setShowSingleStudyModal(false)}
+  article={selectedArticle ? {
+    id: selectedArticle.research_id,
+    title: selectedArticle.title,
+    author: selectedArticle.author_name || selectedArticle.author || 'Unknown Author',
+    date: selectedArticle.date_added,
+    abstract: selectedArticle.abstract || 'No abstract available',
+    referenceCount: selectedArticle.reference_count || 0
+  } : null}
+  onOpenChat={handleOpenChat}
+/>
+
+
       {/* Chat Windows */}
       {activeChatWindows.map(article => (
       <ChatWindow
@@ -493,7 +526,6 @@ const handleOpenChat = (article) => {
         article={article}
         isOpen={true}
         onClose={() => handleCloseChat(article.id)}
-        onUpdateNotifications={updateNotificationCount}
       />
     ))}
     </div>

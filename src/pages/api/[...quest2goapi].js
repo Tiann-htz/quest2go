@@ -38,7 +38,16 @@ const handler = async (req, res) => {
         return authMiddleware(markMessagesAsRead)(req, res);
       } else if (pathname === '/api/admin/update-request-status' && method === 'POST') {
         return authMiddleware(updateRequestStatus)(req, res);
-      }
+      } else if (pathname === '/api/forgot-password/verify-email') {
+      await verifyEmail(req, res);
+    } else if (pathname === '/api/forgot-password/verify-names') {
+      await verifyNames(req, res);
+    } else if (pathname === '/api/forgot-password/retrieve-password') {
+      await retrievePassword(req, res);
+    } else {
+      res.status(404).json({ error: 'Endpoint not found' });
+    }
+ 
         break;
       case 'GET':
         if (pathname === '/api/user') {
@@ -115,6 +124,140 @@ const handler = async (req, res) => {
     res.status(500).json({ error: 'An error occurred while processing your request' });
   }
 };
+
+
+async function verifyEmail(req, res) {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  try {
+    const users = await query(
+      'SELECT * FROM user WHERE email = ?',
+      [email]
+    );
+
+    const exists = users.length > 0;
+    
+    res.status(200).json({ exists });
+  } catch (error) {
+    console.error('Email verification error:', error);
+    res.status(500).json({ error: 'Error verifying email' });
+  }
+}
+
+async function verifyNames(req, res) {
+  const { email, firstName, lastName } = req.body;
+
+  if (!email || !firstName || !lastName) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  try {
+    const users = await query(
+      'SELECT * FROM user WHERE email = ? AND first_name = ? AND last_name = ?',
+      [email, firstName, lastName]
+    );
+
+    if (users.length === 0) {
+      return res.status(200).json({ verified: false });
+    }
+
+    const user = users[0];
+    
+    res.status(200).json({ 
+      verified: true,
+      userType: user.user_type
+    });
+  } catch (error) {
+    console.error('Name verification error:', error);
+    res.status(500).json({ error: 'Error verifying name' });
+  }
+}
+
+async function retrievePassword(req, res) {
+  const { email, firstName, lastName, userType, additionalInfo } = req.body;
+
+  if (!email || !firstName || !lastName || !userType || !additionalInfo) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  try {
+    // First verify the user exists
+    const users = await query(
+      'SELECT * FROM user WHERE email = ? AND first_name = ? AND last_name = ? AND user_type = ?',
+      [email, firstName, lastName, userType]
+    );
+
+    if (users.length === 0) {
+      return res.status(200).json({ success: false });
+    }
+
+    const user = users[0];
+    let verified = false;
+
+    // Verify additional information based on user type
+    if (userType === 'Student') {
+      const studentInfo = await query(
+        'SELECT * FROM students WHERE user_id = ? AND institution_name = ?',
+        [user.user_id, additionalInfo]
+      );
+      verified = studentInfo.length > 0;
+    } else if (userType === 'Researcher') {
+      const researcherInfo = await query(
+        'SELECT * FROM researchers WHERE user_id = ? AND organization_name = ?',
+        [user.user_id, additionalInfo]
+      );
+      verified = researcherInfo.length > 0;
+    } else if (userType === 'Teacher') {
+      const teacherInfo = await query(
+        'SELECT * FROM teachers WHERE user_id = ? AND institution_name = ?',
+        [user.user_id, additionalInfo]
+      );
+      verified = teacherInfo.length > 0;
+    }
+
+    if (!verified) {
+      return res.status(200).json({ success: false });
+    }
+    
+    // Generate a new random password (8 characters)
+    const newPassword = generateRandomPassword(8);
+    
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    // Update the user's password in the database
+    await query(
+      'UPDATE user SET password = ? WHERE user_id = ?',
+      [hashedPassword, user.user_id]
+    );
+    
+    
+    res.status(200).json({ 
+      success: true,
+      password: newPassword 
+    });
+  } catch (error) {
+    console.error('Password retrieval error:', error);
+    res.status(500).json({ error: 'Error resetting password' });
+  }
+}
+
+// Function to generate a random password
+function generateRandomPassword(length) {
+  const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
+  let password = '';
+  
+  for (let i = 0; i < length; i++) {
+    const randomIndex = Math.floor(Math.random() * charset.length);
+    password += charset[randomIndex];
+  }
+  
+  return password;
+}
 
 /////analytics.js API endpoints
 async function getStudiesByCategory(req, res) {

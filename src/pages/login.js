@@ -5,6 +5,7 @@ import { EyeIcon, EyeSlashIcon, ChevronRightIcon, ChevronLeftIcon } from '@heroi
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import axios from 'axios';
+import ForgotPasswordModal from '../components/ForgotPasswordModal';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Login() {
@@ -23,6 +24,7 @@ export default function Login() {
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   
   const router = useRouter();
 
@@ -77,6 +79,24 @@ export default function Login() {
     }
   };
 
+  const handleForgotPassword = () => {
+    const lastResetTime = localStorage.getItem('lastPasswordResetTime');
+    if (lastResetTime) {
+      const elapsedTime = Math.floor((Date.now() - parseInt(lastResetTime)) / 1000);
+      const cooldownDuration = 5 * 60; // 5 minutes in seconds
+      
+      if (elapsedTime < cooldownDuration) {
+        // Show cooldown alert
+        setErrorMessage(`Please wait ${Math.ceil((cooldownDuration - elapsedTime) / 60)} minutes before requesting another password reset.`);
+        setShowErrorAlert(true);
+        setTimeout(() => setShowErrorAlert(false), 5000);
+        return;
+      }
+    }
+    
+    setShowForgotPasswordModal(true);
+  };
+  
   const slideVariants = {
     enter: (direction) => ({
       x: direction > 0 ? 1000 : -1000,
@@ -194,6 +214,15 @@ export default function Login() {
                       Login
                     </button>
                   </form>
+                  <div className="mt-2 text-center">
+                  <button
+    type="button"
+    onClick={handleForgotPassword}
+    className="text-sm text-indigo-600 hover:text-indigo-500"
+  >
+    Forgot Password?
+  </button>
+</div>
                   <div className="mt-6 text-center">
                     <p className="text-sm text-gray-600">
                       Don't have an account?{' '}
@@ -377,6 +406,10 @@ export default function Login() {
           )}
         </AnimatePresence>
       </div>
+      <ForgotPasswordModal 
+  isOpen={showForgotPasswordModal} 
+  onClose={() => setShowForgotPasswordModal(false)} 
+/>
     </div>
   );
 }

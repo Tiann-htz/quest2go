@@ -44,9 +44,7 @@ const handler = async (req, res) => {
       await verifyNames(req, res);
     } else if (pathname === '/api/forgot-password/retrieve-password') {
       await retrievePassword(req, res);
-    } else {
-      res.status(404).json({ error: 'Endpoint not found' });
-    }
+    } 
  
         break;
       case 'GET':
@@ -98,12 +96,16 @@ const handler = async (req, res) => {
           return authMiddleware(getRecentLogs)(req, res);
         } else if (pathname === '/api/admin/analytics/summary-stats') {
           return authMiddleware(getSummaryStats)(req, res);
+        } else if (pathname === '/api/profile/user') {
+          return authMiddleware(getProfileData)(req, res);
         }
         
         break;
       case 'PUT':
         if (pathname.startsWith('/api/admin/studies/')) {
           return authMiddleware(updateStudy)(req, res);
+        } else if (pathname === '/api/profile/update') {
+          return authMiddleware(updateProfile)(req, res);
         }
         break;
       case 'DELETE':
@@ -125,6 +127,173 @@ const handler = async (req, res) => {
   }
 };
 
+async function updateProfile(req, res) {
+  try {
+    const userId = req.userId; // This comes from the authMiddleware
+    const { firstName, lastName, email, password } = req.body;
+    
+    // Verify user exists
+    const users = await query(
+      'SELECT * FROM user WHERE user_id = ?',
+      [userId]
+    );
+    
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = users[0];
+    
+    // Check if email is already in use by another user
+    if (email && email !== user.email) {
+      const existingUser = await query(
+        'SELECT * FROM user WHERE email = ? AND user_id != ?',
+        [email, userId]
+      );
+      
+      if (existingUser.length > 0) {
+        return res.status(400).json({ error: 'Email already in use by another account' });
+      }
+    }
+    
+    // Start building the update query
+    let updateFields = [];
+    let queryParams = [];
+    
+    if (firstName) {
+      updateFields.push('first_name = ?');
+      queryParams.push(firstName);
+    }
+    
+    if (lastName) {
+      updateFields.push('last_name = ?');
+      queryParams.push(lastName);
+    }
+    
+    if (email) {
+      updateFields.push('email = ?');
+      queryParams.push(email);
+    }
+    
+    // Handle password update without the password_change_log
+    if (password && password.trim() !== '') {
+      // Hash the new password
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updateFields.push('password = ?');
+      queryParams.push(hashedPassword);
+    }
+    
+    // If there are no fields to update, return
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    // Build the final query
+    queryParams.push(userId);
+    const updateResult = await query(
+      `UPDATE user SET ${updateFields.join(', ')} WHERE user_id = ?`,
+      queryParams
+    );
+    
+    // Get updated user data
+    const updatedUser = await query(
+      'SELECT user_id, email, first_name, last_name, user_type FROM user WHERE user_id = ?',
+      [userId]
+    );
+    
+    res.status(200).json({ 
+      message: 'Profile updated successfully',
+      user: updatedUser[0]
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+}
+
+async function getProfileData(req, res) {
+  try {
+    // First get base user information
+    const users = await query(
+      'SELECT user_id, email, first_name, last_name, user_type FROM user WHERE user_id = ?',
+      [req.userId]
+    );
+
+    const user = users[0];
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get additional information based on user type
+    let additionalInfo = {};
+    let recentRequests = [];
+
+    if (user.user_type === 'Student') {
+      const [studentInfo] = await query(
+        'SELECT institution_name, year_level, course_type FROM students WHERE user_id = ?', 
+        [user.user_id]
+      );
+      if (studentInfo) {
+        additionalInfo = {
+          institution_name: studentInfo.institution_name,
+          year_level: studentInfo.year_level,
+          course_type: studentInfo.course_type
+        };
+      }
+    } else if (user.user_type === 'Researcher') {
+      const [researcherInfo] = await query(
+        'SELECT organization_name FROM researchers WHERE user_id = ?',
+        [user.user_id]
+      );
+      if (researcherInfo) {
+        additionalInfo = {
+          organization_name: researcherInfo.organization_name
+        };
+      }
+    } else if (user.user_type === 'Teacher') {
+      const [teacherInfo] = await query(
+        'SELECT institution_name FROM teachers WHERE user_id = ?',
+        [user.user_id]
+      );
+      if (teacherInfo) {
+        additionalInfo = {
+          institution_name: teacherInfo.institution_name
+        };
+      }
+    }
+
+    // Get recent research access requests
+    recentRequests = await query(
+      `SELECT 
+        r.request_id, 
+        r.research_id,
+        r.status,
+        r.request_date,
+        s.title
+      FROM 
+        research_access_requests r
+      JOIN 
+        research_studies s ON r.research_id = s.research_id  
+      WHERE 
+        r.user_id = ?
+      ORDER BY 
+        r.request_date DESC
+      LIMIT 10`,
+      [user.user_id]
+    );
+
+    const userData = {
+      ...user,
+      ...additionalInfo,
+      recentRequests
+    };
+
+    res.status(200).json({ user: userData });
+  } catch (error) {
+    console.error('Error fetching profile data:', error);
+    res.status(500).json({ error: 'Error fetching profile data' });
+  }
+}
 
 async function verifyEmail(req, res) {
   const { email } = req.body;

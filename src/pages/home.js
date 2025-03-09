@@ -394,14 +394,14 @@ const handleOpenChat = (article) => {
         </div>
         <hr className="my-2" />
         {user ? (
-          <>
-            <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Profile</a>
-            <button
-              onClick={handleLogout}
-              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-            >
-              Logout
-            </button>
+  <>
+    <Link href="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Profile</Link>
+    <button
+      onClick={handleLogout}
+      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+    >
+      Logout
+    </button>
           </>
         ) : (
           <button

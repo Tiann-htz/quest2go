@@ -355,19 +355,19 @@ const ChatWindow = ({ article, onClose, isOpen, onUpdateNotifications }) => {
                                 <textarea
                                     value={editText}
                                     onChange={(e) => setEditText(e.target.value)}
-                                    className="w-full p-2 text-sm text-gray-900 bg-white border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full p-2 text-sm text-white bg-indigo-500 border rounded-md"
                                     rows="2"
                                 />
                                 <div className="flex justify-end space-x-2">
                                     <button
                                         onClick={() => setEditingMessage(null)}
-                                        className="px-2 py-1 text-xs text-gray-600 hover:text-gray-800"
+                                        className="px-2 py-1 text-xs text-gray-200 hover:text-gray-300"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         onClick={() => handleEditMessage(msg.id, editText)}
-                                        className="px-2 py-1 text-xs text-indigo-600 hover:text-indigo-800"
+                                        className="px-2 py-1 text-xs text-indigo-500 bg-gray-100 hover:bg-gray-300 rounded-md"
                                     >
                                         Save
                                     </button>

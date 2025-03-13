@@ -76,15 +76,15 @@ export default function SignUp() {
       </Head>
 
       <div className="bg-white shadow-lg rounded-lg overflow-hidden w-full max-w-3xl mx-4 p-6">
-        <div className="flex items-center justify-center mb-6 space-x-3">
+        <div className="flex items-center justify-center mb-6 mr-4 space-x-3">
           <Link href="/">
             <Image
-              src="/Logo/q2glogo.png"
-              alt="Quest2Go Logo"
-              width={40}
-              height={40}
-              className="w-10 h-10 cursor-pointer"
-            />
+                        src="/Logo/quest1.png" // Changed from q2glogo.png to quest.png
+                        alt="Quest2Go Logo"
+                        width={200} // Increased from 40
+                        height={200} // Increased from 40
+                        className="w-12 h-14 sm:w-36 sm:h-22 object-fill"
+                       />
           </Link>
           <h2 className="text-2xl font-bold text-gray-900">Sign Up</h2>
         </div>

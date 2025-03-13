@@ -166,17 +166,14 @@ useEffect(() => {
           <div className="flex justify-between h-16">
             {/* Logo and Text - Only visible on desktop */}
             <div className="hidden md:flex items-center space-x-1 sm:space-x-2">
-              <Image
-                src="/Logo/q2glogo.png"
-                alt="Quest2Go Logo"
-                width={40}
-                height={40}
-                className="w-8 h-8 sm:w-10 sm:h-10"
-              />
-              <span className="text-lg sm:text-2xl font-bold">
-                <span className="text-indigo-600">Quest</span>
-                <span className="text-gray-800">2Go</span>
-              </span>
+            <Image
+  src="/Logo/quest1.png" // Changed from q2glogo.png to quest.png
+  alt="Quest2Go Logo"
+  width={200} // Increased from 40
+  height={200} // Increased from 40
+  className="w-12 h-14 sm:w-36 sm:h-22" // Increased from w-8 h-8 sm:w-10 sm:h-10
+/>
+              
             </div>
 
             {/* Mobile Menu Button */}
@@ -228,17 +225,13 @@ useEffect(() => {
         >
           {/* Logo in mobile menu */}
           <div className="flex items-center space-x-2 p-4 border-b">
-            <Image
-              src="/Logo/q2glogo.png"
-              alt="Quest2Go Logo"
-              width={40}
-              height={40}
-              className="w-8 h-8"
-            />
-            <span className="text-xl font-bold">
-              <span className="text-indigo-600">Quest</span>
-              <span className="text-gray-800">2Go</span>
-            </span>
+          <Image
+  src="/Logo/quest.png" // Changed from q2glogo.png to quest.png
+  alt="Quest2Go Logo"
+  width={200} // Increased from 40
+  height={200} // Increased from 40
+  className="w-36 h-20 sm:w-30 sm:h-20" // Increased from w-8 h-8 sm:w-10 sm:h-10
+/>
           </div>
 
           {/* Mobile menu links */}

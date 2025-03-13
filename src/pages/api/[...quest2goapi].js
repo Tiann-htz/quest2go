@@ -694,8 +694,31 @@ async function updateRequestStatus(req, res) {
   }
 }
 
+function mapInstitutionToAbbreviation(fullName) {
+  const institutionMap = {
+    'Holycross of Davao College': 'HCDC',
+    'University of the Immaculate Conception': 'UIC',
+    'University of Southeastern Philippines': 'USEP',
+    'University of Mindanao': 'UM',
+    'Ateneo de Davao University': 'ADDU',
+    'San Pedro College': 'SPC'
+  };
+  
+  return institutionMap[fullName] || fullName;
+}
+
 async function getUsersWithRequests(req, res) {
   try {
+    // Get the admin's institution from the request
+    const adminInstitution = req.institution;
+    
+    if (!adminInstitution) {
+      return res.status(400).json({ error: 'Admin institution not found' });
+    }
+    
+    // Map the full institution name to its abbreviation
+    const institutionAbbr = mapInstitutionToAbbreviation(adminInstitution);
+    
     // First, get all users
     const usersResult = await query(`
       SELECT 
@@ -711,11 +734,11 @@ async function getUsersWithRequests(req, res) {
         last_activity DESC
     `);
     
-    // For each user, get their requested studies
+    // For each user, get their requested studies filtered by admin's institution
     const usersWithRequests = [];
     
     for (const user of usersResult) {
-      // Get all requests for this user
+      // Get all requests for this user filtered by admin's institution
       const requestsResult = await query(`
         SELECT 
           rs.research_id,
@@ -727,13 +750,16 @@ async function getUsersWithRequests(req, res) {
           research_studies rs ON rar.research_id = rs.research_id
         WHERE 
           rar.user_id = ?
-      `, [user.user_id]);
+          AND rs.institution = ?
+      `, [user.user_id, institutionAbbr]);
       
-      // Add the requests to the user object
-      usersWithRequests.push({
-        ...user,
-        requests: requestsResult
-      });
+      // Only add users who have requests for studies from this admin's institution
+      if (requestsResult.length > 0) {
+        usersWithRequests.push({
+          ...user,
+          requests: requestsResult
+        });
+      }
     }
     
     res.status(200).json({ users: usersWithRequests });
@@ -1292,13 +1318,25 @@ async function getStudyMessages(req, res) {
 
 async function getRequestUsers(req, res) {
   try {
+    // Get the admin's institution
+    const adminInstitution = req.institution;
+    if (!adminInstitution) {
+      return res.status(400).json({ error: 'Admin institution not found' });
+    }
+    
+    // Map the full institution name to its abbreviation
+    const institutionAbbr = mapInstitutionToAbbreviation(adminInstitution);
+    
+    // Get users who have requested studies from this institution
     const users = await query(`
       SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.user_type
       FROM user u
       JOIN research_access_requests rar ON u.user_id = rar.user_id
+      JOIN research_studies rs ON rar.research_id = rs.research_id
       JOIN chats c ON u.user_id = c.sender_id
+      WHERE rs.institution = ?
       ORDER BY u.last_name, u.first_name
-    `);
+    `, [institutionAbbr]);
     
     res.status(200).json(users);
   } catch (error) {
@@ -1307,9 +1345,17 @@ async function getRequestUsers(req, res) {
   }
 }
 
-// Get studies requested by a specific user
+// Update getUserStudies function to filter by admin's institution
 async function getUserStudies(req, res) {
   const { userId } = req.query;
+  const adminInstitution = req.institution;
+  
+  if (!adminInstitution) {
+    return res.status(400).json({ error: 'Admin institution not found' });
+  }
+  
+  // Map the full institution name to its abbreviation
+  const institutionAbbr = mapInstitutionToAbbreviation(adminInstitution);
   
   try {
     const studies = await query(`
@@ -1318,8 +1364,9 @@ async function getUserStudies(req, res) {
       JOIN research_access_requests rar ON rs.research_id = rar.research_id
       JOIN chats c ON rs.research_id = c.research_id
       WHERE rar.user_id = ?
+      AND rs.institution = ?
       ORDER BY rs.title
-    `, [userId]);
+    `, [userId, institutionAbbr]);
     
     res.status(200).json(studies);
   } catch (error) {
@@ -1327,7 +1374,6 @@ async function getUserStudies(req, res) {
     res.status(500).json({ error: 'Failed to fetch studies' });
   }
 }
-
 
 
 
@@ -1599,9 +1645,22 @@ async function deleteReference(req, res) {
 /////Admin Research Studies section - Adding, Updating, Deleting
 async function getStudies(req, res) {
   try {
+    // Get the admin's institution from the request (set by authMiddleware)
+    const adminInstitution = req.institution;
+    
+    if (!adminInstitution) {
+      return res.status(400).json({ error: 'Admin institution not found' });
+    }
+    
+    // Map the full institution name to its abbreviation
+    const institutionAbbr = mapInstitutionToAbbreviation(adminInstitution);
+    
+    // Fetch only studies belonging to the admin's institution
     const studies = await query(
-      'SELECT * FROM research_studies ORDER BY date_added DESC'
+      'SELECT * FROM research_studies WHERE institution = ? ORDER BY date_added DESC',
+      [institutionAbbr]
     );
+    
     res.status(200).json({ studies });
   } catch (error) {
     console.error('Error fetching studies:', error);
@@ -1776,13 +1835,14 @@ async function handleAdminLogin(req, res) {
         adminId: admin.admin_id,
         email: admin.email,
         username: admin.username,
+        institution: admin.institution,
         isAdmin: true
       },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    // Set admin token specifically - MODIFIED: Don't clear userToken
+    // Set admin token specifically
     res.setHeader('Set-Cookie', [
       serialize('adminToken', token, {
         httpOnly: true,
@@ -1791,7 +1851,6 @@ async function handleAdminLogin(req, res) {
         maxAge: 86400,
         path: '/'
       })
-      // REMOVED: The line that clears the userToken
     ]);
 
     res.status(200).json({
@@ -1799,7 +1858,8 @@ async function handleAdminLogin(req, res) {
       admin: {
         id: admin.admin_id,
         username: admin.username,
-        email: admin.email
+        email: admin.email,
+        institution: admin.institution
       }
     });
 

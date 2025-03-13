@@ -38,7 +38,7 @@ export default function Users() {
           setIsLoading(false);
         }
       };
-
+    
       const fetchAdminData = async () => {
         try {
           const response = await axios.get('/api/admin/user');
@@ -47,7 +47,7 @@ export default function Users() {
           console.error('Error fetching admin data:', error);
         }
       };
-
+    
       fetchUsers();
       fetchAdminData();
     }, []);
@@ -232,7 +232,9 @@ export default function Users() {
                             <div className="bg-indigo-100 p-2 rounded-full">
                               <User className="w-5 h-5 text-indigo-600" />
                             </div>
-                            <span className="hidden sm:inline text-gray-700 font-medium">{admin?.username || 'Admin'}</span>
+                            <span className="hidden sm:inline text-gray-700 font-medium">
+  {admin?.user?.username || admin?.username || 'Admin'}
+</span>
                             <ChevronDown className="w-4 h-4 text-gray-500" />
                           </div>
                         </button>
@@ -243,12 +245,7 @@ export default function Users() {
                             onClick={(e) => e.stopPropagation()}
                             className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-10 border border-gray-200"
                           >
-                            <button 
-                              className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 w-full"
-                            >
-                              <Settings className="w-4 h-4 mr-3" />
-                              Settings
-                            </button>
+                           
                             <button 
                               onClick={handleLogout}
                               className="flex items-center px-4 py-2 text-red-600 hover:bg-gray-100 w-full"
@@ -268,23 +265,26 @@ export default function Users() {
             {/* Main Content Area */}
             <div className="flex-1 overflow-auto">
   <main className="p-4 sm:p-6"> {/* Reduce padding on small screens */}
-    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 space-y-4 sm:space-y-0">
-      <h1 className="text-2xl font-semibold text-gray-900">User Request Management</h1>
-      <div className="flex flex-wrap items-center gap-2"> {/* Use gap for more consistent spacing */}
-        <div className="flex items-center">
-          <Clock className="w-4 h-4 text-amber-500 mr-1" />
-          <span className="text-sm text-gray-600">Pending</span>
-        </div>
-        <div className="flex items-center">
-          <CheckCircle className="w-4 h-4 text-green-600 mr-1" />
-          <span className="text-sm text-gray-600">Approved</span>
-        </div>
-        <div className="flex items-center">
-          <XCircle className="w-4 h-4 text-red-600 mr-1" />
-          <span className="text-sm text-gray-600">Denied</span>
-        </div>
-      </div>
+  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 space-y-4 sm:space-y-0">
+  <div>
+    <h1 className="text-2xl font-semibold text-gray-900">User Request Management</h1>
+    
+  </div>
+  <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center">
+      <Clock className="w-4 h-4 text-amber-500 mr-1" />
+      <span className="text-sm text-gray-600">Pending</span>
     </div>
+    <div className="flex items-center">
+      <CheckCircle className="w-4 h-4 text-green-600 mr-1" />
+      <span className="text-sm text-gray-600">Approved</span>
+    </div>
+    <div className="flex items-center">
+      <XCircle className="w-4 h-4 text-red-600 mr-1" />
+      <span className="text-sm text-gray-600">Denied</span>
+    </div>
+  </div>
+</div>
   
                 {/* Status update notification (could be shown when status is updated) */}
                 {false && (

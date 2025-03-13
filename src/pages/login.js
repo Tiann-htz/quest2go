@@ -28,6 +28,16 @@ export default function Login() {
   
   const router = useRouter();
 
+  // List of institution admins
+  const institutionAdmins = [
+    { label: 'Holy Cross of Davao College', email: 'hcdc_admin@quest2go.com' },
+    { label: 'University of the Immaculate Conception', email: 'uic_admin@quest2go.com' },
+    { label: 'University of Southeastern Philippines', email: 'usep_admin@quest2go.com' },
+    { label: 'University of Mindanao', email: 'um_admin@quest2go.com' },
+    { label: 'Ateneo de Davao University', email: 'addu_admin@quest2go.com' },
+    { label: 'San Pedro College', email: 'spc_admin@quest2go.com' },
+  ];
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -48,6 +58,11 @@ export default function Login() {
     } else {
       setFormData({ ...formData, [name]: value });
     }
+  };
+
+  const handleInstitutionSelect = (e) => {
+    const selectedEmail = e.target.value;
+    setAdminFormData({ ...adminFormData, email: selectedEmail });
   };
 
   const handleLogin = async (e, isAdmin = false) => {
@@ -216,13 +231,13 @@ export default function Login() {
                   </form>
                   <div className="mt-2 text-center">
                   <button
-    type="button"
-    onClick={handleForgotPassword}
-    className="text-sm text-indigo-600 hover:text-indigo-500"
-  >
-    Forgot Password?
-  </button>
-</div>
+                    type="button"
+                    onClick={handleForgotPassword}
+                    className="text-sm text-indigo-600 hover:text-indigo-500"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
                   <div className="mt-6 text-center">
                     <p className="text-sm text-gray-600">
                       Don't have an account?{' '}
@@ -283,66 +298,90 @@ export default function Login() {
                       <ChevronLeftIcon className="h-6 w-6" />
                     </button>
                     <h2 className="text-2xl font-bold text-gray-900">Admin Login</h2>
-                  </div>
-                  
-                  <form onSubmit={(e) => handleLogin(e, true)} className="space-y-6">
-                    <div>
-                      <label htmlFor="admin-email" className="block text-sm font-medium text-gray-700">
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        id="admin-email"
-                        name="email"
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                </div>
+                
+                <form onSubmit={(e) => handleLogin(e, true)} className="space-y-6">
+                  <div>
+                    <label htmlFor="institution" className="block text-sm font-medium text-gray-700">
+                      Select Institution
+                    </label>
+                    <div className="mt-1">
+                      <select
+                        id="institution"
+                        name="institution"
+                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                         value={adminFormData.email}
+                        onChange={handleInstitutionSelect}
+                        required
+                      >
+                        <option value="" disabled>Select your institution</option>
+                        {institutionAdmins.map((admin) => (
+                          <option key={admin.email} value={admin.email}>
+                            {admin.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="admin-email" className="block text-sm font-medium text-gray-700">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      id="admin-email"
+                      name="email"
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50"
+                      value={adminFormData.email}
+                      onChange={(e) => handleChange(e, true)}
+                      required
+                      readOnly
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="admin-password" className="block text-sm font-medium text-gray-700">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showAdminPassword ? 'text' : 'password'}
+                        id="admin-password"
+                        name="password"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10"
+                        value={adminFormData.password}
                         onChange={(e) => handleChange(e, true)}
                         required
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowAdminPassword(!showAdminPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700"
+                      >
+                        {showAdminPassword ? (
+                          <EyeSlashIcon className="h-5 w-5" />
+                        ) : (
+                          <EyeIcon className="h-5 w-5" />
+                        )}
+                      </button>
                     </div>
+                  </div>
 
-                    <div>
-                      <label htmlFor="admin-password" className="block text-sm font-medium text-gray-700">
-                        Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showAdminPassword ? 'text' : 'password'}
-                          id="admin-password"
-                          name="password"
-                          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10"
-                          value={adminFormData.password}
-                          onChange={(e) => handleChange(e, true)}
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowAdminPassword(!showAdminPassword)}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700"
-                        >
-                          {showAdminPassword ? (
-                            <EyeSlashIcon className="h-5 w-5" />
-                          ) : (
-                            <EyeIcon className="h-5 w-5" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
+                  <button
+                    type="submit"
+                    className="w-full bg-gray-700 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors"
+                    disabled={isLoading || !adminFormData.email}
+                  >
+                    {isLoading ? 'Logging in...' : 'Login as Admin'}
+                  </button>
+                </form>
+              </div>
 
-                    <button
-                      type="submit"
-                      className="w-full bg-gray-700 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? 'Logging in...' : 'Login as Admin'}
-                    </button>
-                  </form>
-                </div>
-
-                <div className="hidden md:flex bg-gray-800 p-8 items-center justify-center md:w-1/2">
-                  <div className="text-center">
-                    <h1 className="text-4xl font-bold text-white mb-4">Admin Portal</h1>
-                    <p className="text-gray-300">Manage Quest2Go platform and users</p>
+              <div className="hidden md:flex bg-gray-800 p-8 items-center justify-center md:w-1/2">
+                <div className="text-center">
+                  <h1 className="text-4xl font-bold text-white mb-4">Admin Portal</h1>
+                  <p className="text-gray-300">Manage Quest2Go platform and users</p>
                   </div>
                 </div>
               </div>
@@ -407,9 +446,9 @@ export default function Login() {
         </AnimatePresence>
       </div>
       <ForgotPasswordModal 
-  isOpen={showForgotPasswordModal} 
-  onClose={() => setShowForgotPasswordModal(false)} 
-/>
+        isOpen={showForgotPasswordModal} 
+        onClose={() => setShowForgotPasswordModal(false)} 
+      />
     </div>
   );
 }

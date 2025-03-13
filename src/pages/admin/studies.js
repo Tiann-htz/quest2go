@@ -46,6 +46,16 @@ export default function Studies() {
   });
 
   useEffect(() => {
+    const fetchAdminData = async () => {
+      try {
+        const response = await axios.get('/api/admin/user');
+        setAdmin(response.data);
+      } catch (error) {
+        console.error('Error fetching admin data:', error);
+      }
+    };
+  
+    fetchAdminData();
     fetchStudies();
   }, []);
 
@@ -245,16 +255,7 @@ export default function Studies() {
                   <div className="flex-1 flex">
                     <div className="w-full flex md:ml-0">
                       <div className="relative w-full text-gray-400 focus-within:text-gray-600">
-                        <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
-                          <Search className="h-5 w-5" />
-                        </div>
-                        <input
-                          type="text"
-                          className="block w-full h-full pl-8 pr-3 py-2 border-transparent text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-0 focus:border-transparent sm:text-sm"
-                          placeholder="Search studies..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+                        
                       </div>
                     </div>
                   </div>
@@ -273,7 +274,9 @@ export default function Studies() {
                           <div className="bg-indigo-100 p-2 rounded-full">
                             <User className="w-5 h-5 text-indigo-600" />
                           </div>
-                          <span className="hidden sm:inline text-gray-700 font-medium">{admin?.username || 'Admin'}</span>
+                          <span className="hidden sm:inline text-gray-700 font-medium">
+  {admin?.user?.username || admin?.username || 'Admin'}
+</span>
                           <ChevronDown className="w-4 h-4 text-gray-500" />
                         </div>
                       </button>
@@ -284,12 +287,7 @@ export default function Studies() {
                           onClick={(e) => e.stopPropagation()}
                           className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-10 border border-gray-200"
                         >
-                          <button 
-                            className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 w-full"
-                          >
-                            <Settings className="w-4 h-4 mr-3" />
-                            Settings
-                          </button>
+                        
                           <button 
                             onClick={handleLogout}
                             className="flex items-center px-4 py-2 text-red-600 hover:bg-gray-100 w-full"

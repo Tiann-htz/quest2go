@@ -19,11 +19,12 @@ export function authMiddleware(handler) {
         req.userId = decoded.userId;
         req.adminId = decoded.adminId;
         req.isAdmin = true;
+        req.institution = decoded.institution;
       } 
       // For user routes
       else {
         if (!userToken) {
-          // MODIFIED: Check if adminToken exists but we're trying to access user routes
+          // Check if adminToken exists but we're trying to access user routes
           if (adminToken) {
             return res.status(403).json({ error: 'User access required, please login as user' });
           }

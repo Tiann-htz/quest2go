@@ -167,11 +167,11 @@ useEffect(() => {
             {/* Logo and Text - Only visible on desktop */}
             <div className="hidden md:flex items-center space-x-1 sm:space-x-2">
             <Image
-  src="/Logo/quest1.png" // Changed from q2glogo.png to quest.png
+  src="/Logo/quest1.png" 
   alt="Quest2Go Logo"
-  width={200} // Increased from 40
-  height={200} // Increased from 40
-  className="w-12 h-14 sm:w-36 sm:h-22" // Increased from w-8 h-8 sm:w-10 sm:h-10
+  width={200} 
+  height={200} 
+  className="w-12 h-14 sm:w-36 sm:h-22" 
 />
               
             </div>

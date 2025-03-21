@@ -250,13 +250,13 @@ const handleOpenChat = (article) => {
         {/* Logo */}
         <div className="h-16 flex items-center mt-3 justify-center">
           <Link href="/" className="flex items-center px-4 hover:opacity-80 transition-opacity">
-           <Image
-             src="/Logo/quest1.png" 
-             alt="Quest2Go Logo"
-             width={200} 
-             height={200} 
-             className="w-12 h-14 sm:w-36 sm:h-22 object-contain"
-            />
+          <Image
+  src="/Logo/quest1.png" 
+  alt="Quest2Go Logo"
+  width={200} 
+  height={200} 
+  className="w-36 h-36 lg:w-36 lg:h-40 object-contain"
+/>
             
           </Link>
         </div>

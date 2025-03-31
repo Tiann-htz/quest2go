@@ -782,31 +782,29 @@ async function getInstitutions(req, res) {
       'SELECT DISTINCT institution FROM research_studies'
     );
     
+    // Mapping of logo keys to their matching patterns
+    const institutionLogos = {
+      'hcdc': ['holycross', 'holy cross', 'hcdc', 'holy cross of davao college'],
+      'uic': ['university of immaculate conception', 'uic'],
+      'um': ['university of mindanao', 'um'],
+      'usep': ['university of southeastern philippines', 'usep']
+    };
+    
     // Map institution names to standard formats for logo matching
     const institutions = institutionsResult.map(item => {
-      const institutionName = item.institution;
-      let logoKey = '';
+      const institutionName = item.institution.toLowerCase();
       
-      // Map full names to logo file names
-      if (institutionName.toLowerCase().includes('holycross') || 
-          institutionName.toLowerCase().includes('hcdc')) {
-        logoKey = 'hcdc';
-      } else if (institutionName.toLowerCase().includes('university of immaculate conception') || 
-                institutionName.toLowerCase().includes('uic')) {
-        logoKey = 'uic';
-      } else if (institutionName.toLowerCase().includes('university of mindanao') || 
-                institutionName.toLowerCase().includes('um')) {
-        logoKey = 'um';
-      } else if (institutionName.toLowerCase().includes('university of southeastern philippines') || 
-                institutionName.toLowerCase().includes('usep')) {
-        logoKey = 'usep';
-      } else {
-        // Default case - use first part of name as key
-        logoKey = institutionName.split(' ')[0].toLowerCase();
+      // Find the matching logo key
+      let logoKey = 'default';
+      for (const [key, patterns] of Object.entries(institutionLogos)) {
+        if (patterns.some(pattern => institutionName.includes(pattern))) {
+          logoKey = key;
+          break;
+        }
       }
       
       return {
-        name: institutionName,
+        name: item.institution,
         logoPath: `/Institution/${logoKey}.png`,
         researchCount: 0 // Will be populated next
       };
@@ -1852,6 +1850,7 @@ async function handleAdminLogin(req, res) {
         path: '/'
       })
     ]);
+  
 
     res.status(200).json({
       message: 'Admin login successful',

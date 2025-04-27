@@ -1,6 +1,6 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/solid';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
@@ -25,16 +25,59 @@ export default function SignUp() {
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  
+  // Password validation states
+  const [passwordValidation, setPasswordValidation] = useState({
+    hasMinLength: false,
+    hasUppercase: false,
+    hasLowercase: false,
+    hasNumber: false,
+    hasSpecialChar: false
+  });
+  const [passwordsMatch, setPasswordsMatch] = useState(true);
 
   const router = useRouter();
+
+  // Check password strength whenever password changes
+  useEffect(() => {
+    const password = formData.password;
+    setPasswordValidation({
+      hasMinLength: password.length >= 8,
+      hasUppercase: /[A-Z]/.test(password),
+      hasLowercase: /[a-z]/.test(password),
+      hasNumber: /[0-9]/.test(password),
+      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+    });
+  }, [formData.password]);
+
+  // Check if passwords match
+  useEffect(() => {
+    if (formData.confirmPassword === "" || formData.password === "") {
+      setPasswordsMatch(true);
+    } else {
+      setPasswordsMatch(formData.password === formData.confirmPassword);
+    }
+  }, [formData.password, formData.confirmPassword]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
 
+  const isPasswordStrong = () => {
+    return Object.values(passwordValidation).every(criteria => criteria === true);
+  };
+
   const handleSignUp = async (e) => {
     e.preventDefault();
+    
+    if (!isPasswordStrong()) {
+      setShowErrorAlert(true);
+      setErrorMessage('Please create a stronger password');
+      setTimeout(() => setShowErrorAlert(false), 3000);
+      return;
+    }
+    
     if (formData.password !== formData.confirmPassword) {
       setShowErrorAlert(true);
       setErrorMessage('Passwords do not match');
@@ -76,18 +119,18 @@ export default function SignUp() {
       </Head>
 
       <div className="bg-white shadow-lg rounded-lg overflow-hidden w-full max-w-3xl mx-4 p-6">
-      <div className="flex items-center justify-center mb-6 mr-4 space-x-3">
-  <Link href="/" className="hidden sm:block">
-    <Image
-      src="/Logo/quest1.png"
-      alt="Quest2Go Logo"
-      width={200}
-      height={200}
-      className="w-12 h-14 sm:w-36 sm:h-22 object-fill"
-    />
-  </Link>
-  <h2 className="text-2xl font-bold text-gray-900">Sign Up</h2>
-</div>
+        <div className="flex items-center justify-center mb-6 mr-4 space-x-3">
+          <Link href="/" className="hidden sm:block">
+            <Image
+              src="/Logo/quest1.png"
+              alt="Quest2Go Logo"
+              width={200}
+              height={200}
+              className="w-12 h-14 sm:w-36 sm:h-22 object-fill"
+            />
+          </Link>
+          <h2 className="text-2xl font-bold text-gray-900">Sign Up</h2>
+        </div>
 
         <form onSubmit={handleSignUp} className="space-y-6">
           {/* Info Section */}
@@ -126,28 +169,28 @@ export default function SignUp() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">You are a:</label>
             <div className="flex space-x-4">
-            <label className="inline-flex items-center">
-  <input
-    type="radio"
-    name="userType"
-    value="Student"
-    checked={formData.userType === 'Student'}
-    onChange={handleChange}
-    className="form-radio h-4 w-4 text-indigo-600"
-  />
-  <span className="ml-2 text-gray-700">Student</span>
-</label>
               <label className="inline-flex items-center">
-      <input
-        type="radio"
-        name="userType"
-        value="Teacher"
-        checked={formData.userType === 'Teacher'}
-        onChange={handleChange}
-        className="form-radio h-4 w-4 text-indigo-600"
-      />
-      <span className="ml-2 text-gray-700">Teacher</span>
-    </label>
+                <input
+                  type="radio"
+                  name="userType"
+                  value="Student"
+                  checked={formData.userType === 'Student'}
+                  onChange={handleChange}
+                  className="form-radio h-4 w-4 text-indigo-600"
+                />
+                <span className="ml-2 text-gray-700">Student</span>
+              </label>
+              <label className="inline-flex items-center">
+                <input
+                  type="radio"
+                  name="userType"
+                  value="Teacher"
+                  checked={formData.userType === 'Teacher'}
+                  onChange={handleChange}
+                  className="form-radio h-4 w-4 text-indigo-600"
+                />
+                <span className="ml-2 text-gray-700">Teacher</span>
+              </label>
               <label className="inline-flex items-center">
                 <input
                   type="radio"
@@ -164,26 +207,26 @@ export default function SignUp() {
 
           {/* Conditional Fields */}
           {formData.userType === 'Teacher' && (
-  <div className="space-y-4">
-    <div className="sm:col-span-2">
-      <label htmlFor="institution" className="block text-sm font-medium text-gray-700">
-        Name of Institution
-      </label>
-      <input
-        type="text"
-        id="institution"
-        name="institution"
-        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-        required
-        value={formData.institution}
-        onChange={handleChange}
-      />
-    </div>
-  </div>
-)}
+            <div className="space-y-4">
+              <div className="sm:col-span-2">
+                <label htmlFor="institution" className="block text-sm font-medium text-gray-700">
+                  Name of Institution
+                </label>
+                <input
+                  type="text"
+                  id="institution"
+                  name="institution"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  required
+                  value={formData.institution}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+          )}
           {formData.userType && (
             <div className="space-y-4">
-            {formData.userType === 'Student' && (
+              {formData.userType === 'Student' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <label htmlFor="institution" className="block text-sm font-medium text-gray-700">
@@ -279,7 +322,7 @@ export default function SignUp() {
                   type={showPassword ? 'text' : 'password'}
                   id="password"
                   name="password"
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10"
+                  className={`mt-1 block w-full px-3 py-2 border ${!isPasswordStrong() && formData.password ? 'border-red-300' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10`}
                   required
                   value={formData.password}
                   onChange={handleChange}
@@ -292,6 +335,28 @@ export default function SignUp() {
                   {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                 </button>
               </div>
+              
+              {/* Password strength indicators */}
+              <div className="mt-2 text-xs">
+                <p className="font-medium text-gray-700 mb-1">Password must contain:</p>
+                <ul className="space-y-1">
+                  <li className={passwordValidation.hasMinLength ? "text-green-600" : "text-red-600"}>
+                    ✓ At least 8 characters
+                  </li>
+                  <li className={passwordValidation.hasUppercase ? "text-green-600" : "text-red-600"}>
+                    ✓ At least 1 uppercase letter (A-Z)
+                  </li>
+                  <li className={passwordValidation.hasLowercase ? "text-green-600" : "text-red-600"}>
+                    ✓ At least 1 lowercase letter (a-z)
+                  </li>
+                  <li className={passwordValidation.hasNumber ? "text-green-600" : "text-red-600"}>
+                    ✓ At least 1 number (0-9)
+                  </li>
+                  <li className={passwordValidation.hasSpecialChar ? "text-green-600" : "text-red-600"}>
+                    ✓ At least 1 special character (!@#$%^&*)
+                  </li>
+                </ul>
+              </div>
             </div>
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
@@ -302,7 +367,7 @@ export default function SignUp() {
                   type={showConfirmPassword ? 'text' : 'password'}
                   id="confirmPassword"
                   name="confirmPassword"
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10"
+                  className={`mt-1 block w-full px-3 py-2 border ${!passwordsMatch && formData.confirmPassword ? 'border-red-300' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10`}
                   required
                   value={formData.confirmPassword}
                   onChange={handleChange}
@@ -315,6 +380,13 @@ export default function SignUp() {
                   {showConfirmPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                 </button>
               </div>
+              
+              {/* Password match indicator */}
+              {formData.confirmPassword && !passwordsMatch && (
+                <p className="mt-2 text-xs text-red-600">
+                  Passwords do not match
+                </p>
+              )}
             </div>
           </div>
 
@@ -386,7 +458,7 @@ export default function SignUp() {
                     </svg>
                   </div>
                   <div className="ml-3 w-0 flex-1 pt-0.5">
-                    <p className="text-sm font-medium text-gray-900 ">
+                    <p className="text-sm font-medium text-gray-900">
                       {errorMessage}
                     </p>
                   </div>

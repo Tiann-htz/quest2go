@@ -10,7 +10,8 @@ const pool = mysql.createPool({
   waitForConnections: true,
   timezone: 'Asia/Manila',
   dateStrings: false, // This ensures we get JS Date objects instead of strings  
-  queueLimit: 0
+  queueLimit: 0,
+  connectTimeout: 60000 // Add this line (60 seconds timeout)
 });
 
 export async function query(sql, values) {

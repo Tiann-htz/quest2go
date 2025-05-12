@@ -14,7 +14,8 @@ import {
   User,
   ChevronDown,
   Settings,
-  LogOut 
+  LogOut,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function Studies() {
@@ -28,6 +29,8 @@ export default function Studies() {
   const [references, setReferences] = useState([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [admin, setAdmin] = useState(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [studyToDelete, setStudyToDelete] = useState(null);
   const [newReference, setNewReference] = useState({
     reference_link: '',
     reference_details: ''
@@ -182,14 +185,23 @@ export default function Studies() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this study?')) {
-      try {
-        await axios.delete(`/api/admin/studies/${id}`);
-        fetchStudies();
-      } catch (error) {
-        console.error('Error deleting study:', error);
-      }
+  const openDeleteModal = (study) => {
+    setStudyToDelete(study);
+    setIsDeleteModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    setIsDeleteModalOpen(false);
+    setStudyToDelete(null);
+  };
+
+  const handleDelete = async () => {
+    try {
+      await axios.delete(`/api/admin/studies/${studyToDelete.research_id}`);
+      closeDeleteModal();
+      fetchStudies();
+    } catch (error) {
+      console.error('Error deleting study:', error);
     }
   };
 
@@ -275,8 +287,8 @@ export default function Studies() {
                             <User className="w-5 h-5 text-indigo-600" />
                           </div>
                           <span className="hidden sm:inline text-gray-700 font-medium">
-  {admin?.user?.username || admin?.username || 'Admin'}
-</span>
+                            {admin?.user?.username || admin?.username || 'Admin'}
+                          </span>
                           <ChevronDown className="w-4 h-4 text-gray-500" />
                         </div>
                       </button>
@@ -382,7 +394,7 @@ export default function Studies() {
                                   <Edit2 className="w-5 h-5" />
                                 </button>
                                 <button
-                                  onClick={() => handleDelete(study.research_id)}
+                                  onClick={() => openDeleteModal(study)}
                                   className="text-red-600 hover:text-red-900"
                                 >
                                   <Trash2 className="w-5 h-5" />
@@ -400,6 +412,7 @@ export default function Studies() {
         </div>
       </div>
 
+      {/* Study Form Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -617,6 +630,52 @@ export default function Studies() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen p-4 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <AlertTriangle className="h-6 w-6 text-red-600" aria-hidden="true" />
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900">Delete Study</h3>
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500">
+                        Are you sure you want to delete this study? This action cannot be undone 
+                        and will permanently remove "{studyToDelete?.title}".
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  onClick={closeDeleteModal}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

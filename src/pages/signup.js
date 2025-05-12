@@ -1,7 +1,8 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
-import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/solid';
+import { useState, useEffect, useRef } from 'react';
+import { EyeIcon, EyeSlashIcon, InformationCircleIcon } from '@heroicons/react/24/solid';
+import { AcademicCapIcon, UserIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import axios from 'axios';
@@ -25,6 +26,7 @@ export default function SignUp() {
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [showPasswordInfo, setShowPasswordInfo] = useState(false);
   
   // Password validation states
   const [passwordValidation, setPasswordValidation] = useState({
@@ -35,20 +37,50 @@ export default function SignUp() {
     hasSpecialChar: false
   });
   const [passwordsMatch, setPasswordsMatch] = useState(true);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const passwordInfoTimeout = useRef(null);
 
   const router = useRouter();
 
   // Check password strength whenever password changes
   useEffect(() => {
     const password = formData.password;
-    setPasswordValidation({
+    const validation = {
       hasMinLength: password.length >= 8,
       hasUppercase: /[A-Z]/.test(password),
       hasLowercase: /[a-z]/.test(password),
       hasNumber: /[0-9]/.test(password),
       hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
-    });
-  }, [formData.password]);
+    };
+    
+    setPasswordValidation(validation);
+    
+    // Show password info when requirements are not met
+    if (password && !Object.values(validation).every(v => v)) {
+      setShowPasswordInfo(true);
+      
+      // Clear existing timeout
+      if (passwordInfoTimeout.current) {
+        clearTimeout(passwordInfoTimeout.current);
+      }
+      
+      // Set new timeout only if not focused
+      if (!isPasswordFocused) {
+        passwordInfoTimeout.current = setTimeout(() => {
+          setShowPasswordInfo(false);
+        }, 4000);
+      }
+    } else if (Object.values(validation).every(v => v)) {
+      // Hide info when all requirements are met
+      setShowPasswordInfo(false);
+    }
+    
+    return () => {
+      if (passwordInfoTimeout.current) {
+        clearTimeout(passwordInfoTimeout.current);
+      }
+    };
+  }, [formData.password, isPasswordFocused]);
 
   // Check if passwords match
   useEffect(() => {
@@ -111,6 +143,12 @@ export default function SignUp() {
     exit: { opacity: 0, y: -50 }
   };
 
+  const infoVariants = {
+    hidden: { opacity: 0, x: 20 },
+    visible: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: 20 }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-8">
       <Head>
@@ -119,22 +157,22 @@ export default function SignUp() {
       </Head>
 
       <div className="bg-white shadow-lg rounded-lg overflow-hidden w-full max-w-3xl mx-4 p-6">
-        <div className="flex items-center justify-center mb-6 mr-4 space-x-3">
-          <Link href="/" className="hidden sm:block">
+        <div className="flex items-center justify-center mb-8 space-x-3">
+          <Link href="/" className="flex items-center justify-center">
             <Image
               src="/Logo/quest1.png"
               alt="Quest2Go Logo"
               width={200}
-              height={200}
-              className="w-12 h-14 sm:w-36 sm:h-22 object-fill"
+              height={250}
+              className="w-18 h-18 sm:w-36 sm:h-28 object-contain"
             />
+            <h2 className="text-3xl font-bold text-gray-900 ml-4">Sign Up</h2>
           </Link>
-          <h2 className="text-2xl font-bold text-gray-900">Sign Up</h2>
         </div>
 
         <form onSubmit={handleSignUp} className="space-y-6">
           {/* Info Section */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
               <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
                 First Name
@@ -165,49 +203,54 @@ export default function SignUp() {
             </div>
           </div>
 
-          {/* User Type Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">You are a:</label>
-            <div className="flex space-x-4">
-              <label className="inline-flex items-center">
+          {/* User Type Selection with Icons */}
+          <div className="py-4">
+            <label className="block text-sm font-medium text-gray-700 mb-3">You are a:</label>
+            <div className="flex justify-center space-x-8">
+              <label className={`flex flex-col items-center p-4 rounded-lg cursor-pointer transition-all ${formData.userType === 'Student' ? 'bg-indigo-50 border border-indigo-300' : 'hover:bg-gray-50'}`}>
+                <AcademicCapIcon className={`h-12 w-12 ${formData.userType === 'Student' ? 'text-indigo-600' : 'text-gray-500'}`} />
                 <input
                   type="radio"
                   name="userType"
                   value="Student"
                   checked={formData.userType === 'Student'}
                   onChange={handleChange}
-                  className="form-radio h-4 w-4 text-indigo-600"
+                  className="hidden"
                 />
-                <span className="ml-2 text-gray-700">Student</span>
+                <span className={`mt-2 font-medium ${formData.userType === 'Student' ? 'text-indigo-700' : 'text-gray-700'}`}>Student</span>
               </label>
-              <label className="inline-flex items-center">
+              
+              <label className={`flex flex-col items-center p-4 rounded-lg cursor-pointer transition-all ${formData.userType === 'Teacher' ? 'bg-indigo-50 border border-indigo-300' : 'hover:bg-gray-50'}`}>
+                <UserIcon className={`h-12 w-12 ${formData.userType === 'Teacher' ? 'text-indigo-600' : 'text-gray-500'}`} />
                 <input
                   type="radio"
                   name="userType"
                   value="Teacher"
                   checked={formData.userType === 'Teacher'}
                   onChange={handleChange}
-                  className="form-radio h-4 w-4 text-indigo-600"
+                  className="hidden"
                 />
-                <span className="ml-2 text-gray-700">Teacher</span>
+                <span className={`mt-2 font-medium ${formData.userType === 'Teacher' ? 'text-indigo-700' : 'text-gray-700'}`}>Teacher</span>
               </label>
-              <label className="inline-flex items-center">
+              
+              <label className={`flex flex-col items-center p-4 rounded-lg cursor-pointer transition-all ${formData.userType === 'Researcher' ? 'bg-indigo-50 border border-indigo-300' : 'hover:bg-gray-50'}`}>
+                <MagnifyingGlassIcon className={`h-12 w-12 ${formData.userType === 'Researcher' ? 'text-indigo-600' : 'text-gray-500'}`} />
                 <input
                   type="radio"
                   name="userType"
                   value="Researcher"
                   checked={formData.userType === 'Researcher'}
                   onChange={handleChange}
-                  className="form-radio h-4 w-4 text-indigo-600"
+                  className="hidden"
                 />
-                <span className="ml-2 text-gray-700">Researcher</span>
+                <span className={`mt-2 font-medium ${formData.userType === 'Researcher' ? 'text-indigo-700' : 'text-gray-700'}`}>Researcher</span>
               </label>
             </div>
           </div>
 
           {/* Conditional Fields */}
           {formData.userType === 'Teacher' && (
-            <div className="space-y-4">
+            <div className="bg-gray-50 p-4 rounded-lg">
               <div className="sm:col-span-2">
                 <label htmlFor="institution" className="block text-sm font-medium text-gray-700">
                   Name of Institution
@@ -227,55 +270,57 @@ export default function SignUp() {
           {formData.userType && (
             <div className="space-y-4">
               {formData.userType === 'Student' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="sm:col-span-2">
-                    <label htmlFor="institution" className="block text-sm font-medium text-gray-700">
-                      Name of Institution
-                    </label>
-                    <input
-                      type="text"
-                      id="institution"
-                      name="institution"
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                      required
-                      value={formData.institution}
-                      onChange={handleChange}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="yearLevel" className="block text-sm font-medium text-gray-700">
-                      Year Level
-                    </label>
-                    <input
-                      type="text"
-                      id="yearLevel"
-                      name="yearLevel"
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                      required
-                      value={formData.yearLevel}
-                      onChange={handleChange}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="course" className="block text-sm font-medium text-gray-700">
-                      Type of Degree
-                    </label>
-                    <input
-                      type="text"
-                      id="course"
-                      name="course"
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                      required
-                      value={formData.course}
-                      onChange={handleChange}
-                    />
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="sm:col-span-2">
+                      <label htmlFor="institution" className="block text-sm font-medium text-gray-700">
+                        Name of Institution
+                      </label>
+                      <input
+                        type="text"
+                        id="institution"
+                        name="institution"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        required
+                        value={formData.institution}
+                        onChange={handleChange}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="yearLevel" className="block text-sm font-medium text-gray-700">
+                        Year Level
+                      </label>
+                      <input
+                        type="text"
+                        id="yearLevel"
+                        name="yearLevel"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        required
+                        value={formData.yearLevel}
+                        onChange={handleChange}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="course" className="block text-sm font-medium text-gray-700">
+                        Type of Degree
+                      </label>
+                      <input
+                        type="text"
+                        id="course"
+                        name="course"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        required
+                        value={formData.course}
+                        onChange={handleChange}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
 
               {formData.userType === 'Researcher' && (
-                <div>
+                <div className="bg-gray-50 p-4 rounded-lg">
                   <label htmlFor="organization" className="block text-sm font-medium text-gray-700">
                     Name of Organization
                   </label>
@@ -313,19 +358,43 @@ export default function SignUp() {
 
           {/* Password Fields */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <div className="relative">
+            <div className="relative">
+              <div className="flex items-center">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  className="ml-1 text-gray-500 hover:text-indigo-700"
+                  onClick={() => setShowPasswordInfo(!showPasswordInfo)}
+                >
+                  <InformationCircleIcon className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="relative mt-1 flex items-center">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   id="password"
                   name="password"
-                  className={`mt-1 block w-full px-3 py-2 border ${!isPasswordStrong() && formData.password ? 'border-red-300' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10`}
+                  className={`block w-full px-3 py-2 border ${!isPasswordStrong() && formData.password ? 'border-red-300 ring-1 ring-red-300' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10`}
                   required
                   value={formData.password}
                   onChange={handleChange}
+                  onFocus={() => {
+                    setIsPasswordFocused(true);
+                    setShowPasswordInfo(true);
+                  }}
+                  onBlur={() => {
+                    setIsPasswordFocused(false);
+                    if (isPasswordStrong()) {
+                      setShowPasswordInfo(false);
+                    } else {
+                      // Set timeout to hide info after 4 seconds
+                      passwordInfoTimeout.current = setTimeout(() => {
+                        setShowPasswordInfo(false);
+                      }, 4000);
+                    }
+                  }}
                 />
                 <button
                   type="button"
@@ -336,38 +405,48 @@ export default function SignUp() {
                 </button>
               </div>
               
-              {/* Password strength indicators */}
-              <div className="mt-2 text-xs">
-                <p className="font-medium text-gray-700 mb-1">Password must contain:</p>
-                <ul className="space-y-1">
-                  <li className={passwordValidation.hasMinLength ? "text-green-600" : "text-red-600"}>
-                    ✓ At least 8 characters
-                  </li>
-                  <li className={passwordValidation.hasUppercase ? "text-green-600" : "text-red-600"}>
-                    ✓ At least 1 uppercase letter (A-Z)
-                  </li>
-                  <li className={passwordValidation.hasLowercase ? "text-green-600" : "text-red-600"}>
-                    ✓ At least 1 lowercase letter (a-z)
-                  </li>
-                  <li className={passwordValidation.hasNumber ? "text-green-600" : "text-red-600"}>
-                    ✓ At least 1 number (0-9)
-                  </li>
-                  <li className={passwordValidation.hasSpecialChar ? "text-green-600" : "text-red-600"}>
-                    ✓ At least 1 special character (!@#$%^&*)
-                  </li>
-                </ul>
-              </div>
+              {/* Floating password info overlay */}
+              <AnimatePresence>
+                {showPasswordInfo && (
+                  <motion.div
+                    className="absolute z-10 right-0 top-16 bg-white shadow-lg rounded-lg border border-gray-200 p-3 w-64"
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    variants={infoVariants}
+                  >
+                    <p className="font-medium text-gray-700 mb-2 text-xs">Password must contain:</p>
+                    <ul className="space-y-1 text-xs">
+                      <li className={passwordValidation.hasMinLength ? "text-green-600" : "text-red-600"}>
+                        {passwordValidation.hasMinLength ? "✓" : "✗"} At least 8 characters
+                      </li>
+                      <li className={passwordValidation.hasUppercase ? "text-green-600" : "text-red-600"}>
+                        {passwordValidation.hasUppercase ? "✓" : "✗"} At least 1 uppercase letter
+                      </li>
+                      <li className={passwordValidation.hasLowercase ? "text-green-600" : "text-red-600"}>
+                        {passwordValidation.hasLowercase ? "✓" : "✗"} At least 1 lowercase letter
+                      </li>
+                      <li className={passwordValidation.hasNumber ? "text-green-600" : "text-red-600"}>
+                        {passwordValidation.hasNumber ? "✓" : "✗"} At least 1 number
+                      </li>
+                      <li className={passwordValidation.hasSpecialChar ? "text-green-600" : "text-red-600"}>
+                        {passwordValidation.hasSpecialChar ? "✓" : "✗"} At least 1 special character
+                      </li>
+                    </ul>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
                 Confirm Password
               </label>
-              <div className="relative">
+              <div className="relative mt-1">
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
                   id="confirmPassword"
                   name="confirmPassword"
-                  className={`mt-1 block w-full px-3 py-2 border ${!passwordsMatch && formData.confirmPassword ? 'border-red-300' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10`}
+                  className={`block w-full px-3 py-2 border ${!passwordsMatch && formData.confirmPassword ? 'border-red-300 ring-1 ring-red-300' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10`}
                   required
                   value={formData.confirmPassword}
                   onChange={handleChange}
@@ -394,13 +473,13 @@ export default function SignUp() {
           <div className="flex flex-col items-center space-y-4 pt-6">
             <button
               type="submit"
-              className="w-full sm:w-96 bg-indigo-600 text-white py-3 rounded-md hover:bg-indigo-700 transition-colors text-lg font-semibold"
+              className="w-full sm:w-96 bg-indigo-600 text-white py-3 rounded-md hover:bg-indigo-700 transition-colors text-lg font-semibold shadow-md"
             >
               Sign Up
             </button>
             <p className="text-sm text-gray-600">
               Already have an account?{' '}
-              <Link href="/login" className="text-indigo-600 hover:text-indigo-500">
+              <Link href="/login" className="text-indigo-600 hover:text-indigo-500 font-medium">
                 Login
               </Link>
             </p>
